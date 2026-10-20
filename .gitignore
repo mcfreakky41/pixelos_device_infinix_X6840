@@ -1,15 +1,15 @@
-# Build output
+﻿# Build output
 out/
 target/
 *.img
 *.zip
 *.tar
+*.tar.gz
 *.tar.md5
 
-# Prebuilt blobs — hanya yang perlu di-track
-# Uncomment baris berikut kalau mau mengabaikan seluruh blobs
-# vendor/infinix/X6840/*/
-# !vendor/infinix/X6840/*.mk
+# Blobs vendor — di-host di GitHub Release (terlalu besar untuk git)
+# di-restore oleh workflow via scripts/fetch-blobs.sh
+vendor/infinix/X6840/proprietary/
 
 # Tools & temp
 *.log

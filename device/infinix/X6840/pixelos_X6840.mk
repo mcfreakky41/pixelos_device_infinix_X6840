@@ -17,13 +17,14 @@ $(call inherit-product, device/infinix/X6840/device.mk)
 PRODUCT_DEVICE := X6840
 PRODUCT_NAME := pixelos_X6840
 PRODUCT_BRAND := Infinix
-PRODUCT_MODEL := Infinix Smart 20
+PRODUCT_MODEL := Infinix X6840
 PRODUCT_MANUFACTURER := Infinix
 
 PRODUCT_GMS_CLIENTID_BASE := android-infinix
 
+# Stock build description (untuk compatibility)
 PRODUCT_BUILD_PROP_OVERRIDES += \
-    PRIVATE_BUILD_DESC="sys_tssi_64_64only_infinix-user 15 AP3A.240905.015.A2 900545 dev-keys"
+    PRIVATE_BUILD_DESC="sys_tssi_64_64only_infinix-user 15 AP3A.240905.015.A2 101500043 release-keys"
 
-# Set BUILD_FINGERPRINT to stock fingerprint for Play Integrity
-BUILD_FINGERPRINT := Infinix/X6840-OP/X6840:15/AP3A.240905.015.A2/900545:user/release-keys
+# Fingerprint stock (Play Integrity)
+BUILD_FINGERPRINT := transsion/tssi/tssi:15/AP3A.240905.015.A2/101500043:user/release-keys
