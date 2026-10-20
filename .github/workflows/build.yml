@@ -6,7 +6,7 @@ on:
       pixelos_branch:
         description: "PixelOS branch"
         required: true
-        default: "fifteen"
+        default: "sixteen"
       build_type:
         description: "Build type"
         required: true
@@ -21,7 +21,7 @@ concurrency:
 jobs:
   build:
     name: Build ROM
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
 
     steps:
@@ -35,10 +35,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
             bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
-            git gnupg gperf imagemagick lib32readline-dev lib32z1-dev libelf-dev \
+            git gnupg gperf imagemagick lib32readline8 lib32z1 libelf-dev \
             liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop \
             pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
-            python3 python-is-python3 openjdk-17-jdk
+            python3 python-is-python3 openjdk-21-jdk
 
       - name: Free disk space
         uses: jlumbroso/free-disk-space@main
@@ -70,7 +70,7 @@ jobs:
           git config --global color.ui false
           repo init --depth=1 --no-repo-verify \
             -u https://github.com/PixelOS-AOSP/manifest.git \
-            -b "${{ github.event.inputs.pixelos_branch || 'fifteen' }}"
+            -b "${{ github.event.inputs.pixelos_branch || 'sixteen' }}"
 
       - name: Sync sources
         run: |
@@ -103,6 +103,12 @@ jobs:
           key: pixelos-X6840-${{ github.ref }}
           max-size: 30G
 
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Build
         run: |
           cd ~/android/pixelos
@@ -111,10 +117,13 @@ jobs:
           export USE_CCACHE=1
           export CCACHE_DIR=/home/runner/.ccache
           ccache -M 30G
+          # Android 16 butuh RAM besar; batasi job agar runner 16GB tidak OOM
+          JOBS=$(( $(nproc --all) / 2 ))
+          echo "Memakai -j$JOBS"
           lunch pixelos_X6840-${{ github.event.inputs.build_type || 'userdebug' }}
-          mka bacon -j$(nproc --all) 2>&1 | tee build.log || {
+          mka bacon -j$JOBS 2>&1 | tee build.log || {
             echo "=== BUILD GAGAL ==="
-            tail -200 build.log
+            tail -300 build.log
             exit 1
           }
 
