@@ -25,21 +25,32 @@ jobs:
     timeout-minutes: 350
 
     steps:
-      # Runner standar hanya ~14 GB -> TIDAK CUKUP untuk source A16 (~70 GB).
-      # Aksi ini me-mount ulang volume besar runner (~64 GB /mnt), sehingga
-      # tersedia ~55-60 GB. WAJIB dan harus dijalankan PALING AWAL (sebelum
-      # checkout), karena /home/runner di-remount.
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 8192
-          swap-size-mb: 4096
-          remove-dotnet: true
-          remove-android: true
-          remove-haskell: true
-          remove-codeql: true
-          remove-docker-images: true
-          build-mount-path: /home/runner
+      # CATATAN (hasil probe runner 24.04):
+      #   / = 145 GB, free ~86 GB. TIDAK ada /mnt terpisah.
+      #   -> easimon/maximize-build-space GAGAL di runner ini (aksi itu untuk
+      #      runner lama Azure DS2_v2 yang punya /mnt 14 GB).
+      # Solusi native: cukup bersihkan software besar ("/usr" 41 GB, "/opt" 8.8 GB)
+      # untuk dapat tambahan puluhan GB. Harus dijalankan SEBELUM checkout.
+      - name: Free disk space (native)
+        run: |
+          echo "=== Disk sebelum ==="; df -h /
+          # Hapus toolchain besar yang tidak dipakai build AOSP
+          sudo rm -rf /usr/share/dotnet            || true
+          sudo rm -rf /usr/local/lib/android       || true
+          sudo rm -rf /opt/ghc /usr/local/.ghcup   || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL  || true
+          sudo rm -rf /usr/local/share/boost       || true
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"      || true
+          sudo rm -rf /opt/az /usr/share/miniconda /usr/local/share/powershell || true
+          sudo rm -rf /usr/local/go /usr/lib/jvm/*graalvm* || true
+          # Bersihkan docker images & apt cache
+          sudo docker image prune -af 2>/dev/null || true
+          sudo apt-get clean
+          # Matikan swap (kalau ada) supaya tidak makan disk
+          sudo swapoff -a 2>/dev/null || true
+          sudo rm -f /swapfile /mnt/swapfile 2>/dev/null || true
+          echo "=== Disk sesudah ==="; df -h /
+          echo "=== Inodes ==="; df -ih /
 
       - name: Checkout device tree
         uses: actions/checkout@v4
@@ -84,19 +95,16 @@ jobs:
           cd ~/android/pixelos
           repo sync -c -j$(nproc --all) --force-sync \
             --no-clone-bundle --no-tags --optimized-fetch
-          echo "=== Disk setelah sync ==="
-          df -h /home/runner ~ 2>/dev/null || df -h
 
-      - name: Reclaim space (hapus .git)
+      - name: Reclaim space (hapus .git & .repo)
         run: |
           cd ~/android/pixelos
-          # Buang metadata git untuk menghemat banyak GB sebelum build.
-          # Build tidak butuh .git (kita tidak repo-sync lagi setelah ini).
+          echo "=== Disk sebelum reclaim ==="; df -h /
+          # Build tidak butuh metadata git/.repo. Buang untuk hemat puluhan GB.
           find . -type d -name .git -prune -exec rm -rf {} + 2>/dev/null || true
-          # repo tool direstart dari cache; aman dihapus
-          rm -rf .repo/projects .repo/project-objects 2>/dev/null || true
-          echo "=== Disk setelah reclaim ==="
-          df -h /home/runner ~ 2>/dev/null || df -h
+          rm -rf .repo 2>/dev/null || true
+          echo "=== Disk setelah reclaim ==="; df -h /
+          echo "=== Ukuran source ==="; du -sh . 2>/dev/null || true
 
       - name: Clone device + vendor tree
         run: |
@@ -122,8 +130,8 @@ jobs:
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: pixelos-X6840-${{ github.ref }}
-          # Runner dimaksimalkan ~60 GB; ccache besar akan menghabiskan disk.
-          max-size: 5G
+          # Disk runner terbatas; out/ AOSP sendiri bisa 30-40 GB.
+          max-size: 2G
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -134,20 +142,22 @@ jobs:
       - name: Build
         run: |
           cd ~/android/pixelos
+          echo "=== Disk sebelum build ==="; df -h /
           source build/envsetup.sh
           export CCACHE_EXEC=$(which ccache)
           export USE_CCACHE=1
           export CCACHE_DIR=/home/runner/.ccache
-          ccache -M 5G
-          # Android 16 butuh RAM besar; batasi job agar runner 16GB tidak OOM
+          ccache -M 2G
+          # Android 16 butuh RAM besar; batasi job agar runner tidak OOM
           JOBS=$(( $(nproc --all) / 2 ))
-          echo "Memakai -j$JOBS"
+          echo "Memakai -j$JOBS  (nproc=$(nproc --all))"
           lunch pixelos_X6840-${{ github.event.inputs.build_type || 'userdebug' }}
           mka bacon -j$JOBS 2>&1 | tee build.log || {
             echo "=== BUILD GAGAL ==="
             tail -300 build.log
             exit 1
           }
+          echo "=== Disk setelah build ==="; df -h /
 
       - name: Upload ROM
         if: success()
