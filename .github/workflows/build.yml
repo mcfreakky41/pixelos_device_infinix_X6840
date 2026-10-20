@@ -13,11 +13,6 @@ on:
         default: "userdebug"
         type: choice
         options: [userdebug, user, eng]
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

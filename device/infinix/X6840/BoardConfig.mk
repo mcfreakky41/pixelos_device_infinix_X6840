@@ -62,7 +62,7 @@ BOARD_MAIN_PARTITION_LIST := \
     odm_dlkm \
     system_dlkm
 
-# --- Filesystems ---
+# --- Filesystems (stock device pakai EROFS, fallback ext4 di fstab) ---
 BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_SYSTEM_EXTIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE := ext4
@@ -72,6 +72,11 @@ BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_SYSTEM_DLKMIMAGE_FILE_SYSTEM_TYPE := ext4
 
+# userdata = f2fs (sesuai stock)
+TARGET_USERIMAGES_USE_F2FS := true
+BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := f2fs
+
+# EROFS support (stock pakai erofs; aktifkan agar bisa baca/vendor erofs)
 BOARD_USES_METADATA_PARTITION := true
 
 # --- A/B ---
