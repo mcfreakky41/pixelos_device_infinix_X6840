@@ -7,7 +7,9 @@
 DEVICE_PATH := device/infinix/X6840
 
 # --- API ---
-PRODUCT_SHIPPING_API_LEVEL := 36
+# PixelOS branch fifteen = Android 15 (API 35). Device stok API 36, tapi
+# karena ROM yang dibangun adalah Android 15, shipping level harus 35.
+PRODUCT_SHIPPING_API_LEVEL := 35
 
 # --- A/B + dynamic partitions + emulated storage ---
 $(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota/launcher.mk)
