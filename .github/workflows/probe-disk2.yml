@@ -1,0 +1,57 @@
+name: Disk Probe v2 (X6840)
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Runner label"
+        required: true
+        default: "ubuntu-24.04-arm"
+
+jobs:
+  probe:
+    name: Probe disk + repo capabilities
+    runs-on: ${{ github.event.inputs.runner }}
+    steps:
+      - name: Disk layout
+        run: |
+          echo "===== arch ====="; uname -m
+          echo "===== df -h / ====="; df -h /
+          echo "===== top dirs ====="
+          du -xh -d1 / 2>/dev/null | sort -rh | head -15 || true
+
+      - name: Setup
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git curl python3
+
+      - name: Install repo + test partial-clone
+        run: |
+          mkdir -p ~/bin
+          curl -s https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          export PATH="$HOME/bin:$PATH"
+          repo --version
+
+          echo "===== TEST 1: repo init dengan partial-clone (blob filter) ====="
+          mkdir -p ~/t1 && cd ~/t1
+          if repo init --depth=1 --partial-clone --clone-filter=blob:limit=10M --no-repo-verify \
+               -u https://github.com/PixelOS-AOSP/manifest.git -b sixteen 2>&1 | tail -20; then
+            echo "INIT_OK_PARTIAL"
+          else
+            echo "INIT_FAIL_PARTIAL"
+          fi
+          echo "--- proyek di manifest ---"
+          find .repo/manifests -name "*.xml" | head
+          grep -c "<project" .repo/manifests/*.xml 2>/dev/null | head
+          echo "--- total project count ---"
+          grep -h "<project" .repo/manifests/*.xml 2>/dev/null | wc -l
+
+          echo "===== TEST 2: sync 3 proyek kecil dgn partial clone, ukur disk ====="
+          df -h / | tail -1
+          repo sync -c -j4 --no-tags --no-clone-bundle \
+            build/make core/soong 2>&1 | tail -15 || true
+          echo "--- disk setelah sync kecil ---"
+          df -h / | tail -1
+          du -sh ~/t1 2>/dev/null
+          du -sh ~/t1/.repo 2>/dev/null
