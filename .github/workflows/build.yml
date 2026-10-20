@@ -6,7 +6,7 @@ on:
       pixelos_branch:
         description: "PixelOS branch"
         required: true
-        default: "pixelos-15.2"
+        default: "fifteen"
       build_type:
         description: "Build type"
         required: true
@@ -38,7 +38,7 @@ jobs:
             git gnupg gperf imagemagick lib32readline-dev lib32z1-dev libelf-dev \
             liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop \
             pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
-            python3 python-is-python3 openjdk-11-jdk
+            python3 python-is-python3 openjdk-17-jdk
 
       - name: Free disk space
         uses: jlumbroso/free-disk-space@main
@@ -70,17 +70,12 @@ jobs:
           git config --global color.ui false
           repo init --depth=1 --no-repo-verify \
             -u https://github.com/PixelOS-AOSP/manifest.git \
-            -b "${{ github.event.inputs.pixelos_branch || 'pixelos-15.2' }}" \
-            -g default,-mips,-darwin,-notdefault || \
-          repo init --depth=1 --no-repo-verify \
-            -u https://github.com/PixelOS-AOSP/manifest.git \
-            -b pixelos-15.2
+            -b "${{ github.event.inputs.pixelos_branch || 'fifteen' }}"
 
       - name: Sync sources
         run: |
           cd ~/android/pixelos
-          repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags \
-            || repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle
+          repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
       - name: Clone device + vendor tree
         run: |
@@ -129,8 +124,9 @@ jobs:
         with:
           name: PixelOS-X6840-${{ github.run_number }}
           path: |
-            ~/android/pixelos/out/target/product/X6840/*.zip
-            ~/android/pixelos/out/target/product/X6840/*.img
+            /home/runner/android/pixelos/out/target/product/X6840/*.zip
+            /home/runner/android/pixelos/out/target/product/X6840/*.img
+            /home/runner/android/pixelos/out/target/product/X6840/*.json
           if-no-files-found: warn
           retention-days: 14
 
@@ -139,6 +135,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-log-${{ github.run_number }}
-          path: ~/android/pixelos/build.log
+          path: /home/runner/android/pixelos/build.log
           if-no-files-found: ignore
           retention-days: 7
