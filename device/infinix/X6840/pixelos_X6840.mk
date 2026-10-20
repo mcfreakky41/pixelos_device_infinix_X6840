@@ -9,7 +9,9 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
 
 # Inherit some common PixelOS stuff.
-$(call inherit-product, vendor/pixelos/config/common_full_phone.mk)
+# NB: pada manifest PixelOS (branch fifteen) vendor config ada di vendor/aosp,
+#     bukan vendor/pixelos.
+$(call inherit-product, vendor/aosp/config/common_full_phone.mk)
 
 # Inherit from X6840 device
 $(call inherit-product, device/infinix/X6840/device.mk)
