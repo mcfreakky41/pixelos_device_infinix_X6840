@@ -45,8 +45,16 @@ PRODUCT_PROPERTY_OVERRIDES += \
 PRODUCT_PROPERTY_OVERRIDES += \
     debug.stagefright.omx_default_rank=0
 
-# --- Konfigurasi audio/power/sensor sudah tercakup di vendor.mk (PRODUCT_COPY_FILES) ---
-# Tidak perlu copy duplikat di sini.
+# --- Dynamic partitions: only A/B, logical in super ---
+PRODUCT_USE_DYNAMIC_PARTITIONS := true
+PRODUCT_BUILD_SUPER_PARTITION := true
+
+# --- Filesystem / fstab ---
+PRODUCT_COPY_FILES += \
+    $(DEVICE_PATH)/rootdir/etc/fstab.mt6768:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.mt6768
+
+# --- Non-AB OTA / A/B OTA ---
+AB_OTA_UPDATER := true
 
 # --- Inherit vendor blobs ---
 $(call inherit-product, vendor/infinix/X6840/X6840-vendor.mk)

@@ -1,0 +1,21 @@
+# Infinix X6840 (Smart 20) — vendor sepolicy
+# Minimal, self-contained rules. Only AOSP-defined types are referenced,
+# plus types declared here. SPDX-License-Identifier: Apache-2.0
+
+# --- Declare Transsion-specific types (only if not already in AOSP) ---
+type transsion_service, service_manager_type;
+type vendor_mtk_prop, property_type;
+
+# --- Allow vendor_init to load kernel modules from vendor_dlkm ---
+allow vendor_init vendor_file:dir { search open read };
+allow vendor_init vendor_file:file { open read getattr map };
+
+# --- Property access (MTK vendor props) ---
+allow vendor_init vendor_mtk_prop:property_service set;
+allow vendor_init vendor_mtk_prop:file { read open getattr map };
+allow system_server vendor_mtk_prop:property_service set;
+
+# --- Transsion AIDL services reachable from apps ---
+allow untrusted_app_27 transsion_service:service_manager find;
+allow platform_app transsion_service:service_manager find;
+allow system_app transsion_service:service_manager find;
