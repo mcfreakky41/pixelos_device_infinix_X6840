@@ -1,0 +1,15 @@
+# Pastikan file .mk dan blob binary tidak diubah line ending-nya
+*.mk text eol=lf
+*.bp text eol=lf
+*.rc text eol=lf
+*.sh text eol=lf
+*.xml text eol=lf
+
+# Blob binary — jangan disentuh
+*.so binary
+*.ko binary
+*.bin binary
+*.dat binary
+*.apk binary
+*.jar binary
+*.img binary

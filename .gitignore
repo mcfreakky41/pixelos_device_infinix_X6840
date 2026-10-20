@@ -1,0 +1,17 @@
+# Build output
+out/
+target/
+*.img
+*.zip
+*.tar
+*.tar.md5
+
+# Prebuilt blobs — hanya yang perlu di-track
+# Uncomment baris berikut kalau mau mengabaikan seluruh blobs
+# vendor/infinix/X6840/*/
+# !vendor/infinix/X6840/*.mk
+
+# Tools & temp
+*.log
+*.tmp
+.DS_Store
