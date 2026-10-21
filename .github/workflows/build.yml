@@ -294,6 +294,82 @@ jobs:
           echo "=== isi prebuilts/jdk ==="
           ls prebuilts/jdk 2>/dev/null || true
 
+      - name: Drop ARM64 host prebuilts (clang)
+        run: |
+          cd ~/android/pixelos
+          # ============================================================
+          # MASALAH: manifest PixelOS tak punya Clang host arm64
+          #   (prebuilts/clang/host/linux-arm64 kosong di branch main).
+          #   Branch 'mirror-goog-main-prebuilts' PUNYA arm64 Clang
+          #   (clang-r584948b / r596125 / r614150) — terverifikasi.
+          #
+          # Versi yang DIMINTA tree (dikonfirmasi dari soong global.go):
+          #   ClangDefaultVersion      = "clang-r547379"
+          #   ClangDefaultShortVersion = "20"
+          # Arm64 prebuilt tak punya r547379 -> pakai r584948b (LLVM 22),
+          # dengan symlink nama + override env (lihat tahap Build).
+          #
+          # Referensi: blog actinis.io "Building AOSP on ARM64".
+          #
+          # Cara: git clone --depth=1 --sparse (ambil dir clang saja).
+          # ============================================================
+          CLANG_DIR="prebuilts/clang/host/linux-arm64"
+          if [ -x "$CLANG_DIR/clang-r584948b/bin/clang" ]; then
+            echo ">>> clang arm64 sudah ada, lewati"
+            "$CLANG_DIR/clang-r584948b/bin/clang" --version | head -1 || true
+            exit 0
+          fi
+          mkdir -p "$CLANG_DIR"
+          echo ">>> clone branch mirror-goog-main-prebuilts (sparse)"
+          rm -rf /tmp/clangarm
+          # Branch ini punya arm64 Clang terbanyak (clang-r584948b, -r596125, -r614150).
+          git clone --depth=1 --filter=blob:none --sparse \
+            -b mirror-goog-main-prebuilts \
+            https://android.googlesource.com/platform/prebuilts/clang/host/linux-arm64 \
+            /tmp/clangarm 2>&1 | tail -3
+          ( cd /tmp/clangarm && git sparse-checkout set clang-r584948b 2>&1 | tail -2 )
+          echo ">>> pindahkan clang-r584948b"
+          rm -rf "$CLANG_DIR/clang-r584948b"
+          mv /tmp/clangarm/clang-r584948b "$CLANG_DIR/clang-r584948b"
+          rm -rf /tmp/clangarm
+          # PENTING: tree PixelOS sixteen mencari nama versi SPESIFIK.
+          # Dikonfirmasi dari cc/config/global.go (soong):
+          #   ClangDefaultVersion = "clang-r547379"
+          # Arm64 prebuilt yang tersedia: r584948b / r596125 / r614150.
+          # Karena tak ada r547379 untuk arm64, kita symlink nama yang dicari
+          # ke versi arm64 terdekat (pendekatan yang sama dipakai blog actinis).
+          for V in clang-r547379 clang-r584948; do
+            ln -sfn clang-r584948b "$CLANG_DIR/$V"
+          done
+          echo ">>> hasil:"
+          ls -la "$CLANG_DIR" || true
+          du -sh "$CLANG_DIR" 2>/dev/null || true
+          "$CLANG_DIR/clang-r584948b/bin/clang" --version | head -2 || true
+          echo ">>> versi Clang yang dicari tree (konfirmasi runtime):"
+          grep -rhoE '"clang-r[0-9a-z]+"' build/soong/cc/config/global.go 2>/dev/null | sort -u | head -5 || true
+          echo ">>> SHORT VERSION yang dicari tree:"
+          grep -rhoE 'ClangDefaultShortVersion\s*=\s*"[0-9]+"' build/soong/cc/config/global.go 2>/dev/null | head -3 || true
+          # PENTING: tree minta short version "20" (LLVM 20), tapi clang-r584948b
+          # adalah LLVM 22 -> path RTLIB 'lib/clang/20/lib/linux' tak ada.
+          # Buat symlink lib/clang/20 -> 22 sebagai jaring pengaman
+          # (selain override LLVM_RELEASE_VERSION=22 di tahap build).
+          if [ -d "$CLANG_DIR/clang-r584948b/lib/clang/22" ]; then
+            ln -sfn 22 "$CLANG_DIR/clang-r584948b/lib/clang/20"
+            echo ">>> dibuat symlink lib/clang/20 -> 22"
+          fi
+          ls "$CLANG_DIR/clang-r584948b/lib/clang/" || true
+
+      - name: Apply ARM64 host patches (build system)
+        run: |
+          cd ~/android/pixelos
+          # Terapkan patch set arm64-host (padanan blog actinis patch 0001-0009).
+          # Skrip idempoten; lihat scripts/apply-arm64-host.sh di device tree.
+          bash "$GITHUB_WORKSPACE/device-tree/scripts/apply-arm64-host.sh" "$PWD" || true
+          echo ""
+          echo ">>> Konfirmasi hasil patch langsung dari tree:"
+          grep -n "HOST_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_ARCH arm64 TIDAK ada"
+          grep -n "HOST_PREBUILT_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_PREBUILT_ARCH arm64 TIDAK ada"
+
       - name: Clone device + vendor tree
         run: |
           cd ~/android/pixelos
@@ -331,6 +407,11 @@ jobs:
         run: |
           cd ~/android/pixelos
           echo "=== Disk sebelum build ==="; df -h /
+          # ARM64-host: pakai Clang arm64 yg tersedia (r584948b, LLVM 22) walau
+          # tree default minta r547379 / LLVM 20. Keduanya punya override env.
+          export LLVM_PREBUILTS_VERSION=clang-r584948b
+          export LLVM_RELEASE_VERSION=22
+          echo ">>> Clang override: version=$LLVM_PREBUILTS_VERSION short=$LLVM_RELEASE_VERSION"
           source build/envsetup.sh
           export CCACHE_EXEC=$(which ccache)
           export USE_CCACHE=1
