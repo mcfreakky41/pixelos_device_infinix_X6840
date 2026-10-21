@@ -1,0 +1,43 @@
+name: Usulan fitur / perbaikan
+description: Usulkan fitur baru atau perbaikan untuk device tree
+title: "[FEAT] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: ringkasan
+    attributes:
+      label: Ringkasan usulan
+      description: Apa yang kamu usulkan, dan kenapa berguna.
+    validations:
+      required: true
+
+  - type: textarea
+    id: masalah
+    attributes:
+      label: Masalah yang dipecahkan
+      description: Kalau ini perbaikan, masalah apa yang sekarang terjadi?
+    validations:
+      required: true
+
+  - type: textarea
+    id: pendekatan
+    attributes:
+      label: Pendekatan yang diusulkan
+      description: Kalau kamu punya gambaran teknisnya. Kalau belum, tulis "belum tahu".
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatif
+    attributes:
+      label: Alternatif yang dipertimbangkan
+    validations:
+      required: false
+
+  - type: textarea
+    id: referensi
+    attributes:
+      label: Referensi
+      description: Device tree lain, commit upstream, dokumentasi, dsb.
+    validations:
+      required: false

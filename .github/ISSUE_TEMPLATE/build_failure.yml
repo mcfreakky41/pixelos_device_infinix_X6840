@@ -1,0 +1,64 @@
+name: Kegagalan build
+description: Build GitHub Actions gagal (compile error, disk habis, dsb.)
+title: "[BUILD] "
+labels: ["build"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sebelum membuka issue, baca
+        [patches/arm64-host/README.md](https://github.com/mcfreakky41/pixelos_device_infinix_X6840/blob/main/patches/arm64-host/README.md)
+        dan [docs/STATUS.md](https://github.com/mcfreakky41/pixelos_device_infinix_X6840/blob/main/docs/STATUS.md) —
+        banyak kegagalan sudah pernah terjadi dan didokumentasikan.
+
+  - type: input
+    id: run_url
+    attributes:
+      label: Tautan run Actions
+      placeholder: "https://github.com/mcfreakky41/pixelos_device_infinix_X6840/actions/runs/123456"
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit yang dipakai
+      description: Hash commit head dari run tersebut.
+      placeholder: "75cd701"
+    validations:
+      required: true
+
+  - type: input
+    id: step
+    attributes:
+      label: Step yang gagal
+      placeholder: "Sync sources / Build / Drop ARM64 Rust toolchain (host)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Pesan error inti
+      description: Potongan log PALING relevan (5-15 baris). Bukan seluruh log.
+      render: shell
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: sudah
+    attributes:
+      label: Sudahkah kamu menjalankan ini?
+      options:
+        - label: "`bash -n scripts/apply-arm64-host.sh` (kalau menyentuh skrip patch)"
+        - label: Membaca patches/arm64-host/README.md
+        - label: Membaca docs/STATUS.md (riwayat build & pelajaran)
+        - label: Mencari issue serupa yang sudah ada
+
+  - type: textarea
+    id: catatan
+    attributes:
+      label: Catatan tambahan
+      description: Misalnya apakah ini regresi dari run sebelumnya.
+    validations:
+      required: false

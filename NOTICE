@@ -1,0 +1,91 @@
+PixelOS Device Tree untuk Infinix Smart 20 (X6840)
+Copyright (C) 2026 mcfreakky41 dan kontributor
+
+================================================================================
+1. LISENSI KODE
+================================================================================
+
+Seluruh berkas yang ditulis oleh proyek ini (device tree, konfigurasi, skrip,
+patch, dokumentasi) dilisensikan di bawah **Apache License, Version 2.0**.
+Salinan lengkap lisensi ada di berkas `LICENSE`.
+
+Kecuali dinyatakan lain secara eksplisit, berkas di dalam:
+  device/infinix/X6840/
+  hardware/transsion/
+  patches/
+  scripts/
+  .github/
+  docs/
+
+...berada di bawah Apache-2.0.
+
+================================================================================
+2. BLOB VENDOR — BUKAN MILIK PROYEK INI
+================================================================================
+
+PENTING: sebagian isi `vendor/infinix/X6840/` (dan berkas `proprietary-files.txt`
+yang menyertainya) berasal dari **dump firmware stok perangkat** dan merupakan
+kepemilikan pihak ketiga:
+
+  - Transsion Holdings / Infinix Mobility  (HAL, framework vendor, `tr_*` dsb.)
+  - MediaTek Inc.                          (komponen SoC mt6768)
+  - Masing-masing pemilik hak cipta lainnya
+
+Blob tersebut **TIDAK** dilisensikan di bawah Apache-2.0. Proyek ini tidak
+mengklaim kepemilikan apa pun atas blob tersebut, dan tidak memberikan hak
+apa pun atasnya. Blob disertakan semata-mata untuk keperluan interoperabilitas
+dan kompatibilitas perangkat, sebagaimana lazim pada proyek ROM komunitas
+(LineageOS, PixelOS, dan sejenisnya).
+
+Siapa pun yang mendistribusikan ulang isi repositori ini bertanggung jawab
+sendiri untuk mematuhi hukum dan ketentuan lisensi pihak ketiga yang berlaku.
+Jika Anda adalah pemegang hak dan menginginkan materi tertentu dihapus,
+silakan buka issue di repositori ini.
+
+================================================================================
+3. KOMPONEN PIHAK KETIGA YANG DIREFERENSIKAN
+================================================================================
+
+Proyek ini dibangun di atas dan/atau merujuk pada karya berikut, dengan
+penghargaan penuh kepada para pengembangnya:
+
+  - Android Open Source Project (AOSP)
+      © The Android Open Source Project — Apache License 2.0
+      https://source.android.com
+
+  - PixelOS
+      © PixelOS Project — Apache License 2.0
+      https://github.com/PixelOS-AOSP
+
+  - LineageOS
+      © The LineageOS Project — Apache License 2.0
+      https://github.com/LineageOS
+
+  - rama-firmware-dumps — referensi device kembar X6728 (Infinix HOT 60i)
+      © pemiliknya masing-masing
+
+  - Tulisan "Building AOSP on ARM64" (actinis.io) — referensi patch host arm64
+      © penulisnya masing-masing
+
+  - Go, Clang/LLVM, Rust dan toolchain lain yang dipakai saat build, tunduk pada
+    lisensi masing-masing proyek.
+
+================================================================================
+4. MEREK DAGANG
+================================================================================
+
+"Infinix" dan "Smart 20" adalah merek dagang Transsion Holdings / Infinix
+Mobility. "MediaTek" dan "Helio" adalah merek dagang MediaTek Inc.
+"Android" adalah merek dagang Google LLC. "PixelOS" adalah nama proyek komunitas.
+
+Penggunaan nama-nama tersebut di sini bersifat deskriptif untuk menunjukkan
+kompatibilitas perangkat, dan tidak menyiratkan afiliasi, dukungan, atau
+pengesahan dari pihak mana pun.
+
+================================================================================
+5. TANPA JAMINAN
+================================================================================
+
+Perangkat lunak ini disediakan "SEBAGAIMANA ADANYA", tanpa jaminan dalam bentuk
+apa pun. Mem-flash ROM kustom dapat menyebabkan kerusakan perangkat, kehilangan
+data, atau brick. Anda melakukannya atas risiko Anda sendiri.

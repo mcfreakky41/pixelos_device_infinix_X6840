@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Pertanyaan umum / diskusi
+    url: https://github.com/mcfreakky41/pixelos_device_infinix_X6840/discussions
+    about: Untuk pertanyaan cara build, cara pakai, atau diskusi bebas — bukan laporan bug.
+  - name: Panduan berkontribusi
+    url: https://github.com/mcfreakky41/pixelos_device_infinix_X6840/blob/main/CONTRIBUTING.md
+    about: Baca dulu sebelum membuka issue atau pull request.

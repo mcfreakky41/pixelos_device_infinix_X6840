@@ -1,0 +1,105 @@
+name: Laporan bug (perangkat)
+description: ROM sudah ter-flash tapi ada yang tidak berfungsi (VoLTE, kamera, dsb.)
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Baca [CONTRIBUTING.md](https://github.com/mcfreakky41/pixelos_device_infinix_X6840/blob/main/CONTRIBUTING.md) dulu.
+        Isi semua bagian — issue yang tidak lengkap akan ditutup tanpa ditinjau.
+
+  - type: textarea
+    id: ringkasan
+    attributes:
+      label: Ringkasan masalah
+      description: Satu atau dua kalimat jelas tentang apa yang salah.
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model perangkat
+      placeholder: "X6840 atau X6840B"
+    validations:
+      required: true
+
+  - type: input
+    id: slot
+    attributes:
+      label: Slot aktif
+      description: "Jalankan: adb shell getprop ro.boot.slot_suffix"
+      placeholder: "_a atau _b"
+    validations:
+      required: true
+
+  - type: input
+    id: rom
+    attributes:
+      label: Versi ROM + tanggal build
+      placeholder: "PixelOS sixteen, build 2026-10-25"
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware stok terakhir
+      placeholder: "X6840-16.3.0.140SP09(OP004PF001AZ)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: langkah
+    attributes:
+      label: Langkah reproduksi
+      description: Minimal dan pasti bisa diulang.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: diharapkan
+    attributes:
+      label: Hasil yang diharapkan
+    validations:
+      required: true
+
+  - type: textarea
+    id: terjadi
+    attributes:
+      label: Hasil yang terjadi
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frekuensi
+    attributes:
+      label: Frekuensi
+      options:
+        - Selalu
+        - Kadang
+        - Sekali
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: "Tempel sebagai TEKS, jangan screenshot (logcat, dmesg, dsb.)."
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: dicoba
+    attributes:
+      label: Sudah dicoba apa saja
+      description: Hal yang sudah kamu coba untuk mengatasi atau mengisolasi masalah.
+    validations:
+      required: false
