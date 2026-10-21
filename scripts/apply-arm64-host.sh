@@ -380,6 +380,25 @@ else
   warn "$TL tidak ada"
 fi
 
+# --- 0003 (lanjutan) — stub Android.bp rust_stdlib_prebuilt_host linux-arm64 ---
+# Diperlukan agar `platform == "linux-arm64"` benar-benar terdefinisi di Soong.
+# Toolchain Rust arm64-musl sendiri adalah DROP (bukan file sumber) — lihat
+# step "Drop ARM64 Rust toolchain" di workflow.
+RUSTBP="prebuilts/rust-toolchain/linux-arm64/Android.bp"
+if [ ! -f "$RUSTBP" ]; then
+  mkdir -p "$(dirname "$RUSTBP")"
+  cat > "$RUSTBP" <<'EOF'
+rust_stdlib_prebuilt_host {
+    name: "libstd",
+    crate_name: "std",
+    sysroot: true,
+}
+EOF
+  ok "dibuat: $RUSTBP"
+else
+  skip "sudah ada: $RUSTBP"
+fi
+
 # =============================================================================
 # PATCH 0009 — build/soong/rust/builder.go: pin staticlib ke sysroot prebuilt
 # =============================================================================
@@ -475,6 +494,119 @@ else
 fi
 
 # =============================================================================
+# PATCH 0005 — prebuilts/jdk/jdk21/Android.bp: enable javap utk host arm64
+#   javap prebuilt_build_tool hanya x86; tambahkan arm64 + target linux_musl_arm64.
+# =============================================================================
+step "0005" "prebuilts/jdk/jdk21/Android.bp: enable javap utk arm64 host"
+JDKBP="prebuilts/jdk/jdk21/Android.bp"
+if [ -f "$JDKBP" ]; then
+  python3 - "$JDKBP" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+if "linux_musl_arm64" in s:
+    print("    SKIP: javap arm64 sudah ada"); sys.exit(0)
+old = '''        x86_64: {
+            enabled: true,
+        },
+    },
+    target: {
+        linux: {
+            src: "linux-x86/bin/javap",'''
+new = '''        x86_64: {
+            enabled: true,
+        },
+        arm64: {
+            enabled: true,
+        },
+    },
+    target: {
+        linux_musl_arm64: {
+            src: "linux-arm64/bin/javap",
+            deps: [
+                "linux-arm64/lib/libjli.so",
+                "linux-arm64/lib/jrt-fs.jar",
+                "linux-arm64/lib/jvm.cfg",
+                "linux-arm64/lib/server/libjvm.so",
+                "linux-arm64/lib/libverify.so",
+                "linux-arm64/lib/libjava.so",
+                "linux-arm64/lib/libzip.so",
+                "linux-arm64/lib/libjimage.so",
+                "linux-arm64/lib/modules",
+                "linux-arm64/lib/libnio.so",
+                "linux-arm64/lib/libnet.so",
+                "linux-arm64/lib/tzdb.dat",
+                "linux-arm64/lib/libawt.so",
+                "linux-arm64/lib/libawt_headless.so",
+                "linux-arm64/lib/libjavajpeg.so",
+                "linux-arm64/lib/liblcms.so",
+                "linux-arm64/lib/libmanagement.so",
+                "linux-arm64/lib/libmanagement_ext.so",
+                "linux-arm64/conf/security/java.security",
+            ],
+        },
+        linux: {
+            src: "linux-x86/bin/javap",'''
+if old in s:
+    s = s.replace(old, new, 1)
+    open(p, "w", encoding="utf-8").write(s)
+    print("    OK  : javap arm64 ditambahkan")
+else:
+    print("    WARN: anchor jdk21/Android.bp tak cocok")
+PY
+else
+  warn "$JDKBP tidak ada"
+fi
+
+# =============================================================================
+# PATCH 0012 — system/sepolicy: hasil getopt() disimpan dlm 'int', bukan 'char'
+#   Di aarch64 plain char = unsigned -> sentinel -1 jadi 0xff -> parsing meleset.
+# =============================================================================
+step "0012" "system/sepolicy: getopt() -> int (bukan char) utk aarch64"
+SEP_FILES="system/sepolicy/tools/checkfc.c
+system/sepolicy/tools/sepolicy-analyze/attribute.c
+system/sepolicy/tools/sepolicy-analyze/neverallow.c
+system/sepolicy/tools/sepolicy-check.c"
+for f in $SEP_FILES; do
+  if [ ! -f "$f" ]; then warn "tidak ada: $f"; continue; fi
+  if grep -qE '^\s*char (c|ch);' "$f"; then
+    sed -i -E 's/^([[:space:]]*)char (c|ch);/\1int \2;/' "$f" \
+      && ok "getopt int: $f" || warn "gagal: $f"
+  else
+    skip "sudah int / pola tak ada: $f"
+  fi
+done
+
+# =============================================================================
+# PATCH 0014 — build/soong/scripts/jar-wrapper.sh: default -Xmx8g utk tool host
+#   metalava OOM pada host arm64 (heap JVM default). -J-Xmx... dari tool tetap menang.
+# =============================================================================
+step "0014" "soong/scripts/jar-wrapper.sh: default -Xmx8g utk java_binary_host"
+JW="build/soong/scripts/jar-wrapper.sh"
+if [ -f "$JW" ]; then
+  if grep -qF 'exec java -Xmx8g' "$JW"; then
+    skip "sudah dipatch: $JW"
+  elif grep -qF 'exec java "${javaOpts[@]}" -jar ${jardir}/${jarfile} "$@"' "$JW"; then
+    python3 - "$JW" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+old = 'exec java "${javaOpts[@]}" -jar ${jardir}/${jarfile} "$@"'
+new = ('# arm64-host (#28): default max-heap supaya tool hemat (metalava) tidak OOM;\n'
+       '# -J-Xmx... dari tool ditambahkan setelahnya dan menimpa (JVM pakai -Xmx terakhir).\n'
+       'exec java -Xmx8g "${javaOpts[@]}" -jar ${jardir}/${jarfile} "$@"')
+s = s.replace(old, new, 1)
+open(p, "w", encoding="utf-8").write(s)
+print("    OK  : jar-wrapper.sh dipatch")
+PY
+  else
+    warn "anchor jar-wrapper tak cocok"
+  fi
+else
+  warn "$JW tidak ada"
+fi
+
+# =============================================================================
 # RINGKASAN + jejak verifikasi
 # =============================================================================
 echo ""
@@ -489,6 +621,11 @@ grep -n "linux-arm64" build/make/envsetup.sh 2>/dev/null | head -2
 ls -la build/make/core/clang/HOST_arm64.mk 2>/dev/null
 grep -c "linux-arm64" prebuilts/build-tools/Android.bp 2>/dev/null | sed 's/^/    build-tools linux-arm64 refs: /'
 grep -n "Linux_musl_arm64" build/soong/rust/toolchain_library.go 2>/dev/null | head -3
+echo "--- tambahan ---"
+ls -la prebuilts/rust-toolchain/linux-arm64/Android.bp 2>/dev/null
+grep -c "linux_musl_arm64" prebuilts/jdk/jdk21/Android.bp 2>/dev/null | sed 's/^/    jdk21 linux_musl_arm64 refs: /'
+grep -n "^[[:space:]]*int c;" system/sepolicy/tools/checkfc.c 2>/dev/null | head -1
+grep -n "Xmx8g" build/soong/scripts/jar-wrapper.sh 2>/dev/null | head -1
 echo "=============================================================="
 
 exit 0

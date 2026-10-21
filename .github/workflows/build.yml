@@ -359,6 +359,64 @@ jobs:
           fi
           ls "$CLANG_DIR/clang-r584948b/lib/clang/" || true
 
+      - name: Drop ARM64 Rust toolchain (host)
+        run: |
+          cd ~/android/pixelos
+          # ============================================================
+          # MASALAH: prebuilts/rust-toolchain TIDAK punya linux-arm64 sama sekali
+          #   (hanya linux-x86, linux-musl-x86, darwin-x86, windows-x86).
+          #   Rust host dipakai ART/dex2oat -> tanpa ini build gagal.
+          #
+          # Referensi: blog actinis.io "Building AOSP on ARM64" — bagian
+          #   "Rust: the real wall". Mereka mendrop toolchain Rust arm64-musl
+          #   resmi (dist rust-lang) ke:
+          #     prebuilts/rust-toolchain/linux-arm64/<ver>/lib/rustlib/aarch64-unknown-linux-musl/lib
+          #   lalu memakai patch 0003/0009 (sudah ada di skrip kita).
+          #
+          # Versi: tree PixelOS sixteen meminta RustDefaultVersion = "1.83.0"
+          #   (dikonfirmasi dari build/soong/rust/config/global.go).
+          # ============================================================
+          RUST_DIR="prebuilts/rust-toolchain/linux-arm64"
+          RV="1.83.0"
+          if [ -d "$RUST_DIR/$RV/lib/rustlib/aarch64-unknown-linux-musl/lib" ]; then
+            echo ">>> rust arm64-musl sudah ada, lewati"
+            ls "$RUST_DIR/$RV/lib/rustlib/" || true
+            exit 0
+          fi
+          echo ">>> unduh official rust dist aarch64-unknown-linux-musl $RV"
+          rm -rf /tmp/rustdrop && mkdir -p /tmp/rustdrop
+          cd /tmp/rustdrop
+          curl -fL --retry 3 -o rust.tar.gz \
+            "https://static.rust-lang.org/dist/rust-${RV}-aarch64-unknown-linux-musl.tar.gz"
+          ls -la rust.tar.gz
+          tar xzf rust.tar.gz
+          cd ~/android/pixelos
+          mkdir -p "$RUST_DIR/$RV"
+          # Salin komponen inti + rustlib (termasuk sysroot std/core/proc_macro).
+          SRC="/tmp/rustdrop/rust-${RV}-aarch64-unknown-linux-musl"
+          for comp in rustc rust-std rustc-dev cargo; do
+            if [ -d "$SRC/$comp" ]; then
+              echo ">>> pasang komponen: $comp"
+              ( cd "$SRC/$comp" && tar xzf install.sh 2>/dev/null || true )
+              # pakai install.sh resmi ke prefix sementara lalu salin
+              bash "$SRC/$comp/install.sh" --prefix="/tmp/ruststage" --disable-ldconfig >/dev/null 2>&1 || true
+            fi
+          done
+          if [ -d /tmp/ruststage/lib/rustlib ]; then
+            cp -a /tmp/ruststage/lib/rustlib "$RUST_DIR/$RV/lib/" 2>/dev/null || true
+          fi
+          # Pastikan layout yang dibaca patch 0009:
+          #   <rustDir>/lib/rustlib/aarch64-unknown-linux-musl/lib
+          echo ">>> layout hasil:"
+          find "$RUST_DIR/$RV" -maxdepth 4 -type d 2>/dev/null | head -20 || true
+          if [ -d "$RUST_DIR/$RV/lib/rustlib/aarch64-unknown-linux-musl/lib" ]; then
+            echo ">>> OK: sysroot arm64-musl tersedia"
+            ls "$RUST_DIR/$RV/lib/rustlib/aarch64-unknown-linux-musl/lib" | head -10 || true
+          else
+            echo ">>> !! sysroot arm64-musl TIDAK ditemukan — periksa layout"
+          fi
+          rm -rf /tmp/rustdrop /tmp/ruststage
+
       - name: Apply ARM64 host patches (build system)
         run: |
           cd ~/android/pixelos
@@ -369,6 +427,12 @@ jobs:
           echo ">>> Konfirmasi hasil patch langsung dari tree:"
           grep -n "HOST_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_ARCH arm64 TIDAK ada"
           grep -n "HOST_PREBUILT_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_PREBUILT_ARCH arm64 TIDAK ada"
+          grep -n "Linux_musl_arm64" build/soong/rust/toolchain_library.go || echo "    !! rust toolchain_library arm64 TIDAK ada"
+          for f in prebuilts/rust-toolchain/linux-arm64/Android.bp build/make/core/clang/HOST_arm64.mk; do
+            [ -f "$f" ] && echo "    ADA : $f" || echo "    !! TIDAK: $f"
+          done
+          grep -q "linux_musl_arm64" prebuilts/jdk/jdk21/Android.bp && echo "    OK  : jdk21 javap arm64" || echo "    !! jdk21 javap arm64 TIDAK ada"
+          grep -q "Xmx8g" build/soong/scripts/jar-wrapper.sh && echo "    OK  : jar-wrapper -Xmx8g" || echo "    !! jar-wrapper TIDAK dipatch"
 
       - name: Clone device + vendor tree
         run: |
