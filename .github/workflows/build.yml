@@ -96,8 +96,13 @@ jobs:
           mkdir -p ~/android/pixelos
           cd ~/android/pixelos
           git config --global color.ui false
-          # partial-clone + blob filter: jangan unduh blob besar -> hemat puluhan GB
-          repo init --depth=1 --partial-clone --clone-filter=blob:limit=10M --no-repo-verify \
+          # partial-clone: pakai filter 'blob:none' (BUKAN blob:limit).
+          # 'blob:limit=10M' mengecualikan blob besar (mis. chromium-webview
+          # yang isinya APK >10MB) -> checkout work tree GAGAL:
+          #   "Cannot initialize work tree for platform/external/chromium-webview"
+          # 'blob:none' menunda semua blob dan mengambilnya on-demand saat
+          # checkout -> aman untuk proyek ber-blob besar.
+          repo init --depth=1 --partial-clone --clone-filter=blob:none --no-repo-verify \
             -u https://github.com/PixelOS-AOSP/manifest.git \
             -b "${{ github.event.inputs.pixelos_branch || 'sixteen' }}"
 
@@ -113,14 +118,28 @@ jobs:
           git config --global core.compression 0
           echo "=== MULAI SYNC: $(date -u) ==="
           # timeout 90 menit: kalau macet/gantung, gagal cepat (bukan nunggu 350m)
-          timeout 5400 stdbuf -oL -eL repo sync -c -j$(nproc --all) \
-            --force-sync --no-clone-bundle --no-tags --optimized-fetch \
-            --verbose 2>&1 || {
+          # retry: error per-proyek (mis. chromium-webview) sering intermiten,
+          #        jadi ulangi sync beberapa kali sebelum menyerah.
+          ok=0
+          for attempt in 1 2 3; do
+            echo ">>> SYNC percobaan $attempt/3  ($(date -u))"
+            if timeout 5400 stdbuf -oL -eL repo sync -c -j$(nproc --all) \
+                 --force-sync --no-clone-bundle --no-tags --optimized-fetch \
+                 --verbose 2>&1; then
+              echo ">>> SYNC OK pada percobaan $attempt"
+              ok=1
+              break
+            else
               code=$?
-              echo "=== SYNC GAGAL/STOP (exit=$code) pada $(date -u) ==="
+              echo ">>> SYNC percobaan $attempt GAGAL (exit=$code) pada $(date -u)"
               if [ "$code" = "124" ]; then echo ">>> TIMEOUT 90 menit: sync macet"; fi
-              exit 1
-            }
+              sleep 15
+            fi
+          done
+          if [ "$ok" != "1" ]; then
+            echo "=== SYNC GAGAL setelah 3 percobaan: $(date -u) ==="
+            exit 1
+          fi
           echo "=== SYNC SELESAI: $(date -u) ==="
 
       - name: Reclaim space (hapus .git & .repo)
