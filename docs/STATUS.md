@@ -1,18 +1,18 @@
 # STATUS PROJECT — PixelOS X6840
 
-Terakhir update: 2026-10-21 (run #17 — target Android 16)
+Terakhir update: 2026-10-21 (run #18 — patch ARM64-host dipasang, target Android 16)
 
 ## Ringkas
 | Item | Status |
 |---|---|
-| Device tree | pushed (commit `7f19aae`) |
+| Device tree | pushed (commit `5144fa5`) |
 | Vendor blobs | uploaded (Release blobs-v1) |
 | Kernel prebuilt | ada (34.77 MB, ARM64 valid, SHA256 AE1703…) |
 | Workflow CI | aktif, manual dispatch |
 | Runner | **ubuntu-24.04-arm** (108 GB free, build native arm64) |
 | Target | **PixelOS `sixteen` (Android 16)** |
 | Release config | **`bp2a`** (satu-satunya yg valid di PixelOS) |
-| Build terkini | run #17 (`sixteen`, userdebug, commit 7f19aae) — Build |
+| Build terkini | run #18 (`sixteen`, userdebug, commit 75cd701) — sedang jalan (sync) |
 
 ## Keputusan arah
 - **Skenario C** (disetujui user): coba Android 16 dulu; fallback ke `fifteen` (A15) kalau mentok.
@@ -39,17 +39,37 @@ Terakhir update: 2026-10-21 (run #17 — target Android 16)
 | #15 | sixteen | failure | microfactory: `Failed to compile …: exit status 2` | Go arm64 terpasang; **akar: tarball Go resmi tak punya arsip std-lib** |
 | #16 | sixteen | failure | `panic: Missing config trunk_staging` | **Go BERES** (`GODEBUG=installgoroot=all` → 298 `.a`); akar baru: release config salah |
 | #17 | **sixteen** | **jalan** | — | `lunch pixelos_X6840 bp2a userdebug` (bukan `trunk_staging`) |
+| #18 | sixteen | **jalan** | — | patch set ARM64-host 0001/0002/0002b/0006/0007 (fix `HOST_ARCH`); belum termasuk Rust drop |
 
 ## Pelajaran ARM64-host (bagian tersulit kedua)
-Manifest PixelOS **hanya menyediakan prebuilt host x86**; runner arm64 butuh tambahan:
+Manifest PixelOS **hanya menyediakan prebuilt host x86**; runner arm64 butuh tambahan.
+Manifest PixelOS/LineageOS **tidak mendukung host aarch64 sama sekali** — tidak ada
+cabang `aarch64` di `build/make/core/envsetup.mk`. Run #17 membuktikan itu:
+
+```
+build/make/core/envsetup.mk:195: error: unknown variable: HOST_ARCH
+```
+
+Solusi = patch set (padanan blog <https://actinis.io/blog/building-aosp-on-arm64>),
+diterapkan oleh `scripts/apply-arm64-host.sh` **setelah sync** (repo AOSP tak bisa
+kita commit), plus drop prebuilt. Semua patch sudah diverifikasi anchornya terhadap
+sumber PixelOS `sixteen`.
 
 | Komponen | Kondisi di manifest | Penanganan |
 |---|---|---|
 | `prebuilts/build-tools/linux-arm64` | **ADA** (ninja, ckati, bison, flex, m4, make) | aman, tanpa patch |
 | **Go** | **TIDAK ADA** (`prebuilts/go/linux-arm64` kosong) | unduh go1.23.4 resmi + `GODEBUG=installgoroot=all go install -a std` → 298 `.a` |
-| Clang host arm64 | kosong di `main`; ADA di branch `mirror-goog-llvm-r596125-release` (`clang-r584948b`) | belum diperlukan |
-| Rust arm64 | repo kosong | belum diperlukan |
-| JDK arm64 | `prebuilts/jdk/jdk21` hanya `linux-x86` | pakai Temurin 21 arm64 dari runner |
+| Clang host arm64 | kosong di `main`; ADA di branch `mirror-goog-main-prebuilts` (`clang-r584948b`/`r596125`/`r614150`) | drop + symlink + override `LLVM_PREBUILTS_VERSION`/`LLVM_RELEASE_VERSION` |
+| **Rust arm64** | **KOSONG di semua branch** | drop `rust-1.83.0-aarch64-unknown-linux-musl` + patch 0003/0009 (all-prebuilt sysroot) |
+| JDK arm64 | `prebuilts/jdk/jdk21` hanya `linux-x86` | Temurin 21 arm64 dari runner + patch 0005 (`javap`) |
+
+Catatan versi Clang: tree minta `clang-r547379` / LLVM `20`, arm64 hanya punya
+`clang-r584948b` (LLVM 22) → symlink `clang-r547379`→`clang-r584948b` + `lib/clang/20`→`22`
++ override env. Ini pendekatan yang sama dipakai blog.
+
+Rust = dinding tersulit (blog menyebutnya *"the real wall"*): "sysroot double vision"
+(`E0464`/`E0460`/`E0152`). Fix final = host Rust **all-prebuilt** (patch 0009):
+buang link-dir/rlib dari-source, pin direktori sysroot prebuilt mentah.
 
 Kunci Go (dikonfirmasi dari source `cmd/go` Go 1.23.4, `build.go`):
 > “Setting `GODEBUG=installgoroot=all` restores the use of `$GOROOT/pkg/$GOOS_$GOARCH`.”
@@ -105,11 +125,17 @@ atau via API (script: scripts/check-build.ps1)
 - blobs diambil dari GitHub Release (bukan disimpan di git)
 
 ## Perkiraan error berikutnya (siap diantisipasi)
-1. **VINTF mismatch** — manifest vendor (API 35) vs compatibility matrix system (API 36)
-2. **Missing separator/`Android.bp`** untuk rootdir
-3. **Blob yang butuh `Android.bp`** (mis. lib yang harus dikompilasi, bukan di-copy)
-4. **Kekurangan HAL A16** di vendor API 35 (mis. `system_dlkm` versi baru)
-5. Clang/Rust host arm64 kalau Soong menuntutnya (sumber Clang sudah diketahui)
+Berdasarkan blog Actinis (peta jalan lengkap setelah patch host), dinding berikutnya:
+1. **Cronet x86 SIMD** — flag `-msse3`, `-mavx*`, `-maes`, `-mpclmul`, `-mf16c` bocor
+   ke host aarch64. Fix blog = shim `clang-real` (bash) yang membuang flag `-m*` x86.
+   ⚠ Harus **pure bash** (tanpa `dirname`/`basename`) + `exec -a "$0"`.
+2. **`llvm-objdump`/`llvm-nm` x86 hardcoded** saat Cronet minta — blog pakai wrapper
+   script di dir bin x86 yang mengeksekusi tool arm64 asli (bukan copy biner: ada
+   ketergantungan loader musl relatif ke tree asal).
+3. **Rust sysroot double vision** — sudah ditangani patch 0003/0009 + drop Rust;
+   tunggu konfirmasi saat build.
+4. **JVM heap (metalava/SystemUI)** — sudah diantisipasi patch 0014 (`-Xmx8g`).
+5. **Missing separator/`Android.bp`** untuk rootdir; **VINTF** (vendor API 35 vs system 36).
 
 ## Catatan penting
 - HP JANGAN di-reboot sampai ROM siap flash
