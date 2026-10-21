@@ -104,8 +104,24 @@ jobs:
       - name: Sync sources
         run: |
           cd ~/android/pixelos
-          repo sync -c -j$(nproc --all) --force-sync \
-            --no-clone-bundle --no-tags --optimized-fetch
+          # Tuned agar tahan throttle & progres terlihat (jangan buffered):
+          #  - git http.postBuffer besar, lowSpeedLimit agar tidak menggantung
+          #  - repo sync -v (verbose) + unbuffered output via stdbuf
+          git config --global http.postBuffer 524288000
+          git config --global http.lowSpeedLimit 1000
+          git config --global http.lowSpeedTime 60
+          git config --global core.compression 0
+          echo "=== MULAI SYNC: $(date -u) ==="
+          # timeout 90 menit: kalau macet/gantung, gagal cepat (bukan nunggu 350m)
+          timeout 5400 stdbuf -oL -eL repo sync -c -j$(nproc --all) \
+            --force-sync --no-clone-bundle --no-tags --optimized-fetch \
+            --verbose 2>&1 || {
+              code=$?
+              echo "=== SYNC GAGAL/STOP (exit=$code) pada $(date -u) ==="
+              if [ "$code" = "124" ]; then echo ">>> TIMEOUT 90 menit: sync macet"; fi
+              exit 1
+            }
+          echo "=== SYNC SELESAI: $(date -u) ==="
 
       - name: Reclaim space (hapus .git & .repo)
         run: |
@@ -166,12 +182,26 @@ jobs:
           # Format legacy 'product-variant' akan di-parse dgn delimiter '-'
           # sehingga variant jadi kosong -> "Invalid lunch combo".
           # Gunakan format baru: lunch <product> <release> <variant>
+          echo "=== LUNCH: $(date -u) ==="
           lunch pixelos_X6840 trunk_staging ${{ github.event.inputs.build_type || 'userdebug' }}
-          mka bacon -j$JOBS 2>&1 | tee build.log || {
+          echo "=== LUNCH SELESAI, cek product ==="
+          echo "TARGET_PRODUCT=$TARGET_PRODUCT"
+          echo "TARGET_BUILD_VARIANT=$TARGET_BUILD_VARIANT"
+          echo "TARGET_DEVICE=$TARGET_DEVICE"
+          [ -n "$TARGET_PRODUCT" ] || { echo ">>> TARGET_PRODUCT kosong: lunch gagal"; exit 1; }
+          # Heartbeat: cetak baris tiap 5 menit supaya log tetap terlihat hidup,
+          # dan progres ninja terlihat (unbuffered).
+          ( while true; do sleep 300; echo "[heartbeat] $(date -u) build masih jalan"; done ) &
+          HB=$!
+          echo "=== MULAI mka bacon: $(date -u) ==="
+          if ! stdbuf -oL -eL mka bacon -j$JOBS 2>&1 | tee build.log; then
             echo "=== BUILD GAGAL ==="
             tail -300 build.log
+            kill $HB 2>/dev/null || true
             exit 1
-          }
+          fi
+          kill $HB 2>/dev/null || true
+          echo "=== BUILD SELESAI: $(date -u) ==="
           echo "=== Disk setelah build ==="; df -h /
 
       - name: Upload ROM
