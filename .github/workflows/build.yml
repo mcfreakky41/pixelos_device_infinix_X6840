@@ -173,6 +173,43 @@ jobs:
           echo "=== Disk setelah reclaim ==="; df -h /
           echo "=== Ukuran source ==="; du -sh . 2>/dev/null || true
 
+      - name: Install Go toolchain (arm64 host)
+        run: |
+          cd ~/android/pixelos
+          # ============================================================
+          # MASALAH (run #14, error asli):
+          #   build/blueprint/microfactory/microfactory.bash: line 63:
+          #   cd: .../prebuilts/go/linux-arm64/: No such file or directory
+          #   Process completed with exit code 127
+          #
+          # Penyebab: manifest PixelOS hanya menyediakan prebuilt Go untuk
+          # 'linux-x86' (lihat default.xml). Soong menghitung GOROOT =
+          # 'prebuilts/go/<GOOS>-<GOARCH>'. Di runner arm64 -> 'linux-arm64'
+          # yang TIDAK ADA. Jadi Soong tidak punya Go.
+          #
+          # Solusi: sediakan toolchain Go resmi untuk linux-arm64 di path
+          # yang persis diharapkan Soong.
+          # ============================================================
+          GOROOT_DIR="prebuilts/go/linux-arm64"
+          if [ -x "$GOROOT_DIR/bin/go" ]; then
+            echo ">>> Go arm64 sudah ada, lewati"
+            "$GOROOT_DIR/bin/go" version
+            exit 0
+          fi
+          mkdir -p prebuilts/go
+          GOVER="go1.23.4"
+          echo ">>> unduh ${GOVER}.linux-arm64.tar.gz"
+          curl -fL --retry 3 --connect-timeout 30 \
+            "https://go.dev/dl/${GOVER}.linux-arm64.tar.gz" -o /tmp/go.tar.gz
+          rm -rf /tmp/goextract && mkdir -p /tmp/goextract
+          tar -C /tmp/goextract -xzf /tmp/go.tar.gz
+          rm -rf "$GOROOT_DIR"
+          mv /tmp/goextract/go "$GOROOT_DIR"
+          rm -f /tmp/go.tar.gz
+          echo ">>> Go terpasang di:"
+          "$GOROOT_DIR/bin/go" version
+          du -sh "$GOROOT_DIR"
+
       - name: Clone device + vendor tree
         run: |
           cd ~/android/pixelos
