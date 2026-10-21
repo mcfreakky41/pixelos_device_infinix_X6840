@@ -21,16 +21,19 @@ concurrency:
 jobs:
   build:
     name: Build ROM
-    runs-on: ubuntu-24.04
+    # arm64 runner (repo public => gratis):
+    #   - 108 GB free (x64 hanya 86 GB), /usr lebih ramping (23 vs 41 GB)
+    #   - device X6840 = arm64-v8a -> build native (cepat), bukan emulasi
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 350
 
     steps:
-      # CATATAN (hasil probe runner 24.04):
-      #   / = 145 GB, free ~86 GB. TIDAK ada /mnt terpisah.
-      #   -> easimon/maximize-build-space GAGAL di runner ini (aksi itu untuk
-      #      runner lama Azure DS2_v2 yang punya /mnt 14 GB).
-      # Solusi native: cukup bersihkan software besar ("/usr" 41 GB, "/opt" 8.8 GB)
-      # untuk dapat tambahan puluhan GB. Harus dijalankan SEBELUM checkout.
+      # Hasil probe:
+      #   x64  : / = 145 GB, free 86 GB
+      #   arm64: / = 145 GB, free 108 GB   <-- dipakai
+      #   TIDAK ada /mnt terpisah -> easimon/maximize-build-space GAGAL
+      #   (aksi itu utk runner lama Azure DS2_v2 yg punya /mnt 14 GB).
+      # Solusi: cleanup native + partial-clone + reclaim .git/.repo.
       - name: Free disk space (native)
         run: |
           echo "=== Disk sebelum ==="; df -h /
@@ -43,6 +46,7 @@ jobs:
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"      || true
           sudo rm -rf /opt/az /usr/share/miniconda /usr/local/share/powershell || true
           sudo rm -rf /usr/local/go /usr/lib/jvm/*graalvm* || true
+          sudo rm -rf /usr/share/swift              || true
           # Bersihkan docker images & apt cache
           sudo docker image prune -af 2>/dev/null || true
           sudo apt-get clean
@@ -86,7 +90,8 @@ jobs:
           mkdir -p ~/android/pixelos
           cd ~/android/pixelos
           git config --global color.ui false
-          repo init --depth=1 --no-repo-verify \
+          # partial-clone + blob filter: jangan unduh blob besar -> hemat puluhan GB
+          repo init --depth=1 --partial-clone --clone-filter=blob:limit=10M --no-repo-verify \
             -u https://github.com/PixelOS-AOSP/manifest.git \
             -b "${{ github.event.inputs.pixelos_branch || 'sixteen' }}"
 
