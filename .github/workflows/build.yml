@@ -96,14 +96,15 @@ jobs:
           mkdir -p ~/android/pixelos
           cd ~/android/pixelos
           git config --global color.ui false
-          # STRATEGI (dari data run #9 vs #11/#12):
-          #  - #9 dgn '--depth=1 --partial-clone --clone-filter=blob:limit=10M'
+          # STRATEGI (terverifikasi dari log):
+          #  - Run #9: '--depth=1 --partial-clone --clone-filter=blob:limit=10M'
           #    => "repo sync has finished successfully" (23 menit). Puncak disk
           #    137GB/145GB, jadi --depth=1 WAJIB (tanpa itu tidak muat).
-          #  - #11/#12 gagal 'Cannot initialize work tree' utk chromium-webview
-          #    => INTERMITEN (config sama bisa sukses/gagal).
-          #  Solusi: pakai config #9 (terbukti) + retry yg membersihkan metadata
-          #  proyek gagal supaya percobaan berikutnya fresh.
+          #    Log run #9 TIDAK punya satu pun error chromium-webview.
+          #  - Run #10-#13: error yang sama muncul ~2 menit setelah sync mulai,
+          #    DETERMINISTIK. Penyebabnya bukan config init, melainkan
+          #    perubahan pada PERINTAH SYNC (lihat step 'Sync sources').
+          #  => init tetap seperti run #9.
           repo init --depth=1 --partial-clone --clone-filter=blob:limit=10M --no-repo-verify \
             -u https://github.com/PixelOS-AOSP/manifest.git \
             -b "${{ github.event.inputs.pixelos_branch || 'sixteen' }}"
@@ -111,43 +112,50 @@ jobs:
       - name: Sync sources
         run: |
           cd ~/android/pixelos
-          # Tuned agar tahan throttle & progres terlihat (jangan buffered):
-          #  - git http.postBuffer besar, lowSpeedLimit agar tidak menggantung
-          #  - repo sync -v (verbose) + unbuffered output via stdbuf
-          git config --global http.postBuffer 524288000
-          git config --global http.lowSpeedLimit 1000
-          git config --global http.lowSpeedTime 60
-          git config --global core.compression 0
+          # ============================================================
+          # BUKTI (jangan diubah tanpa alasan kuat!):
+          #  Run #9 = SATU-SATUNYA run yang sync-nya BERHASIL.
+          #  Perintahnya PERSIS:
+          #    repo sync -c -j$(nproc --all) --force-sync \
+          #      --no-clone-bundle --no-tags --optimized-fetch
+          #
+          #  Run #10-#13 SEMUA gagal di proyek pertama ber-clone-depth=1
+          #  ("Cannot initialize work tree for platform/external/chromium-webview").
+          #  Perbedaan run #11+ vs run #9 pada step ini:
+          #    + 'git config http.*' tweak
+          #    + 'timeout' + 'stdbuf -oL -eL' wrapper
+          #    + '--verbose' + '2>&1'
+          #  Salah satu dari itu mengubah jalur fetch repo sehingga
+          #  partial-clone + shallow (98 proyek ber-clone-depth=1)
+          #  gagal checkout.
+          #
+          #  => Kembalikan ke perintah run #9 yang TERBUKTI.
+          #     Retry tetap ada, tapi tanpa wrapper/timeout/verbose.
+          # ============================================================
           echo "=== MULAI SYNC: $(date -u) ==="
-
           ok=0
           for attempt in 1 2 3; do
             echo ">>> SYNC percobaan $attempt/3  ($(date -u))"
-            if timeout 5400 stdbuf -oL -eL repo sync -c -j$(nproc --all) \
-                 --force-sync --no-clone-bundle --no-tags --optimized-fetch \
-                 --verbose 2>&1; then
+            if repo sync -c -j$(nproc --all) --force-sync \
+                 --no-clone-bundle --no-tags --optimized-fetch; then
               echo ">>> SYNC OK pada percobaan $attempt"
               ok=1
               break
-            else
-              code=$?
-              echo ">>> SYNC percobaan $attempt GAGAL (exit=$code) pada $(date -u)"
-              if [ "$code" = "124" ]; then echo ">>> TIMEOUT 90 menit: sync macet"; fi
-              df -h / || true
-              # Pemulihan: error 'Cannot initialize work tree' terjadi pada
-              # proyek ber-shallow. Bersihkan metadata parsial proyek itu
-              # supaya percobaan berikutnya clone ulang dari nol.
-              for proj in external/chromium-webview; do
-                if [ -d "$proj" ] || [ -d ".repo/projects/$proj.git" ]; then
-                  echo ">>> bersihkan metadata parsial: $proj"
-                  rm -rf "$proj" ".repo/projects/$proj.git" 2>/dev/null || true
-                fi
-              done
-              # repo perlu tahu proyek ini 'belum di-sync' -> tandai ulang
-              echo ">>> coba perbaiki kondisi repo"
-              repo forall -c 'true' >/dev/null 2>&1 || true
-              sleep 15
             fi
+            echo ">>> SYNC percobaan $attempt GAGAL pada $(date -u)"
+            df -h / || true
+            # PEMULIHAN: error 'Cannot initialize work tree' muncul pada proyek
+            # ber-clone-depth=1 akibat partial-clone+shallow. Buang SEMUA jejak
+            # proyek itu, lalu tandai supaya percobaan berikutnya clone ulang
+            # TANPA state parsial (fresh).
+            for proj in external/chromium-webview external/chromiumos-config; do
+              if [ -e "$proj" ] || [ -e ".repo/projects/$proj.git" ]; then
+                echo ">>> bersihkan jejak parsial: $proj"
+                rm -rf "$proj" ".repo/projects/$proj.git" \
+                       ".repo/project-objects/$(echo $proj | tr '/' '_').git" 2>/dev/null || true
+              fi
+            done
+            sleep 15
           done
           if [ "$ok" != "1" ]; then
             echo "=== SYNC GAGAL setelah 3 percobaan: $(date -u) ==="
