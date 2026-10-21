@@ -11,6 +11,11 @@
 
 DEVICE_PATH := device/infinix/X6840
 
+# --- Device identity ---
+# Dipakai oleh guard di Android.mk dan oleh build system.
+TARGET_DEVICE := X6840
+TARGET_OTA_ASSERT_DEVICE := X6840,Infinix-X6840
+
 # --- Platform / arch ---
 TARGET_BOARD_PLATFORM := mt6768
 TARGET_BOOTLOADER_BOARD_NAME := mt6768

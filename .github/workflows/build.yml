@@ -162,7 +162,11 @@ jobs:
           # Android 16 butuh RAM besar; batasi job agar runner tidak OOM
           JOBS=$(( $(nproc --all) / 2 ))
           echo "Memakai -j$JOBS  (nproc=$(nproc --all))"
-          lunch pixelos_X6840-${{ github.event.inputs.build_type || 'userdebug' }}
+          # PENTING: nama product kita 'pixelos_X6840' mengandung underscore.
+          # Format legacy 'product-variant' akan di-parse dgn delimiter '-'
+          # sehingga variant jadi kosong -> "Invalid lunch combo".
+          # Gunakan format baru: lunch <product> <release> <variant>
+          lunch pixelos_X6840 trunk_staging ${{ github.event.inputs.build_type || 'userdebug' }}
           mka bacon -j$JOBS 2>&1 | tee build.log || {
             echo "=== BUILD GAGAL ==="
             tail -300 build.log
