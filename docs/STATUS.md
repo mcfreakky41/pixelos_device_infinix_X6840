@@ -1,17 +1,18 @@
 # STATUS PROJECT — PixelOS X6840
 
-Terakhir update: 2026-10-21 (run #9 — target Android 16)
+Terakhir update: 2026-10-21 (run #17 — target Android 16)
 
 ## Ringkas
 | Item | Status |
 |---|---|
-| Device tree | pushed (commit `8f4f140`) |
+| Device tree | pushed (commit `7f19aae`) |
 | Vendor blobs | uploaded (Release blobs-v1) |
 | Kernel prebuilt | ada (34.77 MB, ARM64 valid, SHA256 AE1703…) |
 | Workflow CI | aktif, manual dispatch |
 | Runner | **ubuntu-24.04-arm** (108 GB free, build native arm64) |
 | Target | **PixelOS `sixteen` (Android 16)** |
-| Build terkini | run #9 (`sixteen`, userdebug, commit 8f4f140) — Sync sources |
+| Release config | **`bp2a`** (satu-satunya yg valid di PixelOS) |
+| Build terkini | run #17 (`sixteen`, userdebug, commit 7f19aae) — Build |
 
 ## Keputusan arah
 - **Skenario C** (disetujui user): coba Android 16 dulu; fallback ke `fifteen` (A15) kalau mentok.
@@ -32,6 +33,27 @@ Terakhir update: 2026-10-21 (run #9 — target Android 16)
 | #7 | sixteen | failure | **disk habis saat sync lagi** (log kosong = runner mati) | pindah ke arm64 + partial-clone |
 | #8 | sixteen | failure | paket apt 32-bit tidak ada di arm64 (`*-multilib`, `lib32*`) | paket jadi kondisional per-arsitektur |
 | #9 | **sixteen** | **jalan** | — | arm64 (108 GB) + partial-clone + paket apt benar |
+| #10 | sixteen | cancelled | — | restart bersih |
+| #11–#13 | sixteen | failure | `chromium-webview`: "Cannot initialize work tree" | **akar: flag sync tambahan** (`git config http.*`, `timeout`, `stdbuf`, `2>&1`) — bukan `repo init`. Kembalikan perintah sync run #9 |
+| #14 | sixteen | failure | `prebuilts/go/linux-arm64: No such file` (exit 127) | sync **SUKSES** (~96 mnt); tambah step install Go arm64 |
+| #15 | sixteen | failure | microfactory: `Failed to compile …: exit status 2` | Go arm64 terpasang; **akar: tarball Go resmi tak punya arsip std-lib** |
+| #16 | sixteen | failure | `panic: Missing config trunk_staging` | **Go BERES** (`GODEBUG=installgoroot=all` → 298 `.a`); akar baru: release config salah |
+| #17 | **sixteen** | **jalan** | — | `lunch pixelos_X6840 bp2a userdebug` (bukan `trunk_staging`) |
+
+## Pelajaran ARM64-host (bagian tersulit kedua)
+Manifest PixelOS **hanya menyediakan prebuilt host x86**; runner arm64 butuh tambahan:
+
+| Komponen | Kondisi di manifest | Penanganan |
+|---|---|---|
+| `prebuilts/build-tools/linux-arm64` | **ADA** (ninja, ckati, bison, flex, m4, make) | aman, tanpa patch |
+| **Go** | **TIDAK ADA** (`prebuilts/go/linux-arm64` kosong) | unduh go1.23.4 resmi + `GODEBUG=installgoroot=all go install -a std` → 298 `.a` |
+| Clang host arm64 | kosong di `main`; ADA di branch `mirror-goog-llvm-r596125-release` (`clang-r584948b`) | belum diperlukan |
+| Rust arm64 | repo kosong | belum diperlukan |
+| JDK arm64 | `prebuilts/jdk/jdk21` hanya `linux-x86` | pakai Temurin 21 arm64 dari runner |
+
+Kunci Go (dikonfirmasi dari source `cmd/go` Go 1.23.4, `build.go`):
+> “Setting `GODEBUG=installgoroot=all` restores the use of `$GOROOT/pkg/$GOOS_$GOARCH`.”
+Go ≥ 1.20 berhenti menulis `pkg/*.a`; bootstrap microfactory AOSP tetap membutuhkannya.
 
 ## Strategi disk (tahap tersulit — sudah terpecahkan)
 Sumber Android 16 penuh (~80–100 GB) **tidak muat** di runner x64 gratis (maks ~86 GB).
@@ -87,6 +109,7 @@ atau via API (script: scripts/check-build.ps1)
 2. **Missing separator/`Android.bp`** untuk rootdir
 3. **Blob yang butuh `Android.bp`** (mis. lib yang harus dikompilasi, bukan di-copy)
 4. **Kekurangan HAL A16** di vendor API 35 (mis. `system_dlkm` versi baru)
+5. Clang/Rust host arm64 kalau Soong menuntutnya (sumber Clang sudah diketahui)
 
 ## Catatan penting
 - HP JANGAN di-reboot sampai ROM siap flash
