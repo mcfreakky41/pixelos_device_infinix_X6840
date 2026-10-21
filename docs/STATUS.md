@@ -1,16 +1,17 @@
 # STATUS PROJECT — PixelOS X6840
 
-Terakhir update: 2026-10-20 (run #5 — target Android 16)
+Terakhir update: 2026-10-21 (run #9 — target Android 16)
 
 ## Ringkas
 | Item | Status |
 |---|---|
-| Device tree | pushed (commit `da90e0c`) |
+| Device tree | pushed (commit `8f4f140`) |
 | Vendor blobs | uploaded (Release blobs-v1) |
 | Kernel prebuilt | ada (34.77 MB, ARM64 valid, SHA256 AE1703…) |
 | Workflow CI | aktif, manual dispatch |
+| Runner | **ubuntu-24.04-arm** (108 GB free, build native arm64) |
 | Target | **PixelOS `sixteen` (Android 16)** |
-| Build terkini | run #5 (`sixteen`, userdebug, commit da90e0c) |
+| Build terkini | run #9 (`sixteen`, userdebug, commit 8f4f140) — Sync sources |
 
 ## Keputusan arah
 - **Skenario C** (disetujui user): coba Android 16 dulu; fallback ke `fifteen` (A15) kalau mentok.
@@ -26,7 +27,33 @@ Terakhir update: 2026-10-20 (run #5 — target Android 16)
 | #2 | fifteen | failure | branch `pixelos-15.2` tidak ada | ganti ke `fifteen`, JDK, artifact path |
 | #3 | fifteen | cancelled (sengaja) | — | BoardConfig+rootdir+sepolicy belum lengkap |
 | #4 | fifteen | cancelled | pindah target ke A16 | — |
-| #5 | **sixteen** | jalan | — | API 36, runner ubuntu-24.04, JDK 21, jobs halved |
+| #5 | sixteen | failure | **disk habis saat sync** | cleanup native (aksi maximize-build-space rusak) |
+| #6 | sixteen | failure | `easimon/maximize-build-space` crash di runner 24.04 | buang aksi itu, ganti cleanup native |
+| #7 | sixteen | failure | **disk habis saat sync lagi** (log kosong = runner mati) | pindah ke arm64 + partial-clone |
+| #8 | sixteen | failure | paket apt 32-bit tidak ada di arm64 (`*-multilib`, `lib32*`) | paket jadi kondisional per-arsitektur |
+| #9 | **sixteen** | **jalan** | — | arm64 (108 GB) + partial-clone + paket apt benar |
+
+## Strategi disk (tahap tersulit — sudah terpecahkan)
+Sumber Android 16 penuh (~80–100 GB) **tidak muat** di runner x64 gratis (maks ~86 GB).
+Penyelesaian lewat dua sumbu, dibuktikan dengan probe (`probe-disk` & `probe-disk2`):
+
+| | x64 `ubuntu-24.04` | **arm64 `ubuntu-24.04-arm`** |
+|---|---|---|
+| Total disk (`/`) | 145 GB | 145 GB |
+| **Free** | **86 GB** | **108 GB** |
+| `/usr` | 41 GB | **23 GB** (lebih ramping) |
+| `/opt` | 8.8 GB | 5.7 GB |
+| Multilib 32-bit | ada | **tidak ada** |
+
+- **Runner `arm64`** dipakai karena repo **public** → gratis, dan disk 108 GB > 86 GB.
+  Bonus: device X6840 = **arm64-v8a** → build **native (cepat)**, bukan emulasi.
+- **`repo init --partial-clone --clone-filter=blob:limit=10M`** (terbukti berhasil di probe;
+  manifest PixelOS = **990 proyek**) → tidak mengunduh blob besar.
+- Cleanup native: hapus `/usr/share/dotnet`, `/usr/local/lib/android`, `/usr/share/swift`,
+  `/opt/hostedtoolcache`, miniconda, powershell, go, graalvm.
+- Setelah sync: reclaim `.git` & `.repo` sebelum build.
+- Catatan: runner ini **tidak punya `/mnt` terpisah** → `easimon/maximize-build-space`
+  **tidak kompatibel** (aksi itu untuk runner lama Azure DS2_v2 dengan `/mnt` 14 GB).
 
 ## Link
 - Repo   : https://github.com/mcfreakky41/pixelos_device_infinix_X6840
@@ -47,7 +74,13 @@ atau via API (script: scripts/check-build.ps1)
 - rootdir/etc/fstab.mt6768 (ext4 build, turunan stock fstab.mt6768)
 - sepolicy/vendor/mtk.te (minimal, self-contained)
 - vendorsetup.sh (lunch combo)
-- workflow: default branch `sixteen`, ubuntu-24.04, openjdk-21, -j$(nproc)/2
+
+## Yang dilengkapi di CI (commit terakhir 8f4f140)
+- runner arm64 + partial-clone + cleanup native
+- JDK 21, build `-j$(nproc)/2` (hindari OOM)
+- paket apt kondisional per-arsitektur (fix build #8)
+- reclaim `.git`/`.repo` setelah sync
+- blobs diambil dari GitHub Release (bukan disimpan di git)
 
 ## Perkiraan error berikutnya (siap diantisipasi)
 1. **VINTF mismatch** — manifest vendor (API 35) vs compatibility matrix system (API 36)
