@@ -64,12 +64,18 @@ jobs:
       - name: Set up build environment
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq \
-            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
-            git gnupg gperf imagemagick lib32readline8 lib32z1 libelf-dev \
+          # Paket inti (tersedia di x64 maupun arm64)
+          PKGS="bc bison build-essential ccache curl flex \
+            git gnupg gperf imagemagick libelf-dev \
             liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop \
             pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
-            python3 python-is-python3 openjdk-21-jdk
+            python3 python-is-python3 openjdk-21-jdk"
+          # Paket multilib 32-bit HANYA ada di x64. Device X6840 arm64-only
+          # (TARGET_SUPPORTS_32_BIT_APPS := false) => tidak diperlukan di arm64.
+          if [ "$(uname -m)" = "x86_64" ]; then
+            PKGS="$PKGS g++-multilib gcc-multilib lib32readline8 lib32z1"
+          fi
+          sudo apt-get install -y -qq $PKGS
 
       - name: Install repo tool
         run: |
