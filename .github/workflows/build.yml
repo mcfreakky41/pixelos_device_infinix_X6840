@@ -177,38 +177,122 @@ jobs:
         run: |
           cd ~/android/pixelos
           # ============================================================
-          # MASALAH (run #14, error asli):
-          #   build/blueprint/microfactory/microfactory.bash: line 63:
-          #   cd: .../prebuilts/go/linux-arm64/: No such file or directory
-          #   Process completed with exit code 127
+          # MASALAH (run #14 & #15):
+          #  #14: 'prebuilts/go/linux-arm64/: No such file or directory' (exit 127)
+          #  #15: Go jalan, tapi microfactory GAGAL compile:
+          #       "Failed to compile github.com/google/blueprint/...: exit status 2"
           #
-          # Penyebab: manifest PixelOS hanya menyediakan prebuilt Go untuk
-          # 'linux-x86' (lihat default.xml). Soong menghitung GOROOT =
-          # 'prebuilts/go/<GOOS>-<GOARCH>'. Di runner arm64 -> 'linux-arm64'
-          # yang TIDAK ADA. Jadi Soong tidak punya Go.
+          # Penyebab (dikonfirmasi dari referensi AOSP-on-ARM64):
+          #  - manifest PixelOS hanya punya prebuilts/go/linux-x86.
+          #  - Soong: GOROOT = prebuilts/go/<GOOS>-<GOARCH> -> 'linux-arm64'.
+          #  - Tarball Go upstream TIDAK berisi arsip std-lib terkompilasi
+          #    di $GOROOT/pkg/linux_arm64/*.a, padahal bootstrap microfactory
+          #    AOSP MEMBUTUHKAN arsip itu. Prebuilt AOSP punya; tarball tidak.
           #
-          # Solusi: sediakan toolchain Go resmi untuk linux-arm64 di path
-          # yang persis diharapkan Soong.
+          # Solusi: sediakan toolchain resmi go1.23.4 (versi SAMA dgn prebuilt
+          # AOSP: prebuilts/go/linux-x86/VERSION = go1.23.4), lalu BANGUN
+          # arsip std lib ke $GOROOT/pkg/linux_arm64 lewat 'go install std'.
           # ============================================================
           GOROOT_DIR="prebuilts/go/linux-arm64"
-          if [ -x "$GOROOT_DIR/bin/go" ]; then
-            echo ">>> Go arm64 sudah ada, lewati"
-            "$GOROOT_DIR/bin/go" version
-            exit 0
-          fi
           mkdir -p prebuilts/go
-          GOVER="go1.23.4"
-          echo ">>> unduh ${GOVER}.linux-arm64.tar.gz"
-          curl -fL --retry 3 --connect-timeout 30 \
-            "https://go.dev/dl/${GOVER}.linux-arm64.tar.gz" -o /tmp/go.tar.gz
-          rm -rf /tmp/goextract && mkdir -p /tmp/goextract
-          tar -C /tmp/goextract -xzf /tmp/go.tar.gz
-          rm -rf "$GOROOT_DIR"
-          mv /tmp/goextract/go "$GOROOT_DIR"
-          rm -f /tmp/go.tar.gz
-          echo ">>> Go terpasang di:"
-          "$GOROOT_DIR/bin/go" version
-          du -sh "$GOROOT_DIR"
+          if [ ! -x "$GOROOT_DIR/bin/go" ]; then
+            GOVER="go1.23.4"
+            echo ">>> unduh ${GOVER}.linux-arm64.tar.gz"
+            curl -fL --retry 3 --connect-timeout 30 \
+              "https://go.dev/dl/${GOVER}.linux-arm64.tar.gz" -o /tmp/go.tar.gz
+            rm -rf /tmp/goextract && mkdir -p /tmp/goextract
+            tar -C /tmp/goextract -xzf /tmp/go.tar.gz
+            rm -rf "$GOROOT_DIR"
+            mv /tmp/goextract/go "$GOROOT_DIR"
+            rm -f /tmp/go.tar.gz
+          fi
+          export GOROOT="$(cd "$GOROOT_DIR" && pwd)"
+          export PATH="$GOROOT/bin:$PATH"
+          unset GOPATH GOFLAGS
+          echo ">>> go version:"; go version
+          echo ">>> GOROOT=$GOROOT"
+
+          # ---- Populasi $GOROOT/pkg/<goos>_<goarch>/*.a ----
+          # KUNCI (dikonfirmasi dari source cmd/go Go 1.23.4, build.go):
+          #   "Setting GODEBUG=installgoroot=all restores the use of
+          #    $GOROOT/pkg/$GOOS_$GOARCH"
+          # Go >= 1.20 berhenti menulis pkg/*.a secara default, TAPI
+          # microfactory AOSP membutuhkannya. GODEBUG ini mengembalikan
+          # perilaku lama -> arsip .a ditulis ke $GOROOT/pkg/linux_arm64/.
+          echo ">>> [1/3] go install -a std (GODEBUG=installgoroot=all)"
+          ( cd "$GOROOT/src" && GO111MODULE=off GOPATH="$GOROOT" \
+              GODEBUG=installgoroot=all \
+              go install -a std 2>&1 | tail -15 ) || true
+          CNT=$(find "$GOROOT/pkg" -name '*.a' 2>/dev/null | wc -l)
+          echo ">>> jumlah .a setelah cara 1: $CNT"
+
+          if [ "$CNT" -lt 50 ]; then
+            echo ">>> [2/3] ulangi tanpa -a (arsip sebagian sudah ada)"
+            ( cd "$GOROOT/src" && GO111MODULE=off GOPATH="$GOROOT" \
+                GODEBUG=installgoroot=all \
+                go install std 2>&1 | tail -15 ) || true
+            CNT=$(find "$GOROOT/pkg" -name '*.a' 2>/dev/null | wc -l)
+            echo ">>> jumlah .a setelah cara 2: $CNT"
+          fi
+
+          # ---- DIAGNOSTIK: reproduksi bootstrap microfactory dgn output PENUH ----
+          # Ini yang gagal di run #15 ('Failed to compile ... exit status 2').
+          # Kita jalankan manual supaya pesan error asli terlihat.
+          echo ">>> DIAGNOSTIK: uji bootstrap microfactory (output penuh)"
+          DIAG=/tmp/mf_diag
+          rm -rf "$DIAG" && mkdir -p "$DIAG"
+          BLUEPRINT_DIR="$PWD/build/blueprint"
+          if [ -f "$BLUEPRINT_DIR/microfactory/microfactory.go" ]; then
+            sed 's/^package microfactory/package main/' \
+              "$BLUEPRINT_DIR/microfactory/microfactory.go" > "$DIAG/microfactory.go"
+            printf '\n//for use with go run\nfunc main() { Main() }\n' >> "$DIAG/microfactory.go"
+            echo "--- go run microfactory.go (stderr+stdout penuh) ---"
+            ( cd "$DIAG" && GOPATH="$GOROOT" GO111MODULE=off GOFLAGS= \
+                go run microfactory.go 2>&1 | head -60 ) || true
+            echo "--- go env (ringkas) ---"
+            go env GOROOT GOOS GOARCH GOPATH GOCACHE GOFLAGS CGO_ENABLED GOPROXY
+            echo "--- isi pkg/ ---"
+            find "$GOROOT/pkg" -maxdepth 1 2>/dev/null || true
+          else
+            echo ">>> blueprint belum ada di $BLUEPRINT_DIR (lewati diagnostik)"
+          fi
+
+          echo ">>> selesai setup Go"
+
+      - name: Survey ARM64 host prebuilts (diagnostik)
+        run: |
+          cd ~/android/pixelos
+          # Laporan cepat: prebuilt host ARM64 mana yang ada / tidak ada.
+          # Ini memberi tahu masalah lanjutan TANPA menunggu build panjang.
+          echo "=== SURVEY prebuilt host (arm64 vs x86) ==="
+          for p in \
+            prebuilts/go/linux-arm64 prebuilts/go/linux-x86 \
+            prebuilts/clang/host/linux-arm64 prebuilts/clang/host/linux-x86 \
+            prebuilts/build-tools/linux-arm64 prebuilts/build-tools/linux-x86 \
+            prebuilts/rust-toolchain/linux-arm64 prebuilts/rust-toolchain/linux-x86 \
+            prebuilts/jdk/jdk21/linux-arm64 prebuilts/jdk/jdk21/linux-x86 \
+            prebuilts/sdk prebuilts/misc/linux-arm64 prebuilts/misc/linux-x86 ; do
+            if [ -e "$p" ]; then
+              echo "  ADA     : $p"
+            else
+              echo "  TIDAK   : $p"
+            fi
+          done
+          echo ""
+          echo "=== nproc / uname (konteks host) ==="
+          uname -m; nproc
+          echo ""
+          echo "=== isi prebuilts/build-tools (top-level) ==="
+          ls prebuilts/build-tools 2>/dev/null || true
+          echo ""
+          echo "=== isi prebuilts/clang/host ==="
+          ls prebuilts/clang/host 2>/dev/null || true
+          echo ""
+          echo "=== isi prebuilts/rust-toolchain ==="
+          ls prebuilts/rust-toolchain 2>/dev/null || true
+          echo ""
+          echo "=== isi prebuilts/jdk ==="
+          ls prebuilts/jdk 2>/dev/null || true
 
       - name: Clone device + vendor tree
         run: |
