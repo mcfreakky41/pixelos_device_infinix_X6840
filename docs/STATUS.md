@@ -1,6 +1,6 @@
 # STATUS PROJECT — PixelOS X6840
 
-Terakhir update: 2026-10-21 (run #18 — patch ARM64-host dipasang, target Android 16)
+Terakhir update: 2026-10-21 (patch 0003 dirombak + 0009 dibuang; siap run #19, target Android 16)
 
 ## Ringkas
 | Item | Status |
@@ -39,7 +39,8 @@ Terakhir update: 2026-10-21 (run #18 — patch ARM64-host dipasang, target Andro
 | #15 | sixteen | failure | microfactory: `Failed to compile …: exit status 2` | Go arm64 terpasang; **akar: tarball Go resmi tak punya arsip std-lib** |
 | #16 | sixteen | failure | `panic: Missing config trunk_staging` | **Go BERES** (`GODEBUG=installgoroot=all` → 298 `.a`); akar baru: release config salah |
 | #17 | **sixteen** | **jalan** | — | `lunch pixelos_X6840 bp2a userdebug` (bukan `trunk_staging`) |
-| #18 | sixteen | **jalan** | — | patch set ARM64-host 0001/0002/0002b/0006/0007 (fix `HOST_ARCH`); belum termasuk Rust drop |
+| #18 | sixteen | failure | **`build/make/core/envsetup.mk:1072: error: missing 'endif'`** (patch a2 anchor persis tak cocok senyap) | anchor `(a2)` dibuat tahan-bentuk + dry-run offline |
+| #19 | sixteen | — | — (siap dispatch) | 0003 dirombak (fix prefix prebuilt), 0009 dibuang, 0002(a2) diperbaiki |
 
 ## Pelajaran ARM64-host (bagian tersulit kedua)
 Manifest PixelOS **hanya menyediakan prebuilt host x86**; runner arm64 butuh tambahan.
@@ -60,16 +61,21 @@ sumber PixelOS `sixteen`.
 | `prebuilts/build-tools/linux-arm64` | **ADA** (ninja, ckati, bison, flex, m4, make) | aman, tanpa patch |
 | **Go** | **TIDAK ADA** (`prebuilts/go/linux-arm64` kosong) | unduh go1.23.4 resmi + `GODEBUG=installgoroot=all go install -a std` → 298 `.a` |
 | Clang host arm64 | kosong di `main`; ADA di branch `mirror-goog-main-prebuilts` (`clang-r584948b`/`r596125`/`r614150`) | drop + symlink + override `LLVM_PREBUILTS_VERSION`/`LLVM_RELEASE_VERSION` |
-| **Rust arm64** | **KOSONG di semua branch** | drop `rust-1.83.0-aarch64-unknown-linux-musl` + patch 0003/0009 (all-prebuilt sysroot) |
+| **Rust arm64** | **KOSONG di semua branch** | drop `rust-1.83.0-aarch64-unknown-linux-musl` + patch 0003 (prefix prebuilt sadar-host) |
 | JDK arm64 | `prebuilts/jdk/jdk21` hanya `linux-x86` | Temurin 21 arm64 dari runner + patch 0005 (`javap`) |
 
 Catatan versi Clang: tree minta `clang-r547379` / LLVM `20`, arm64 hanya punya
 `clang-r584948b` (LLVM 22) → symlink `clang-r547379`→`clang-r584948b` + `lib/clang/20`→`22`
 + override env. Ini pendekatan yang sama dipakai blog.
 
-Rust = dinding tersulit (blog menyebutnya *"the real wall"*): "sysroot double vision"
-(`E0464`/`E0460`/`E0152`). Fix final = host Rust **all-prebuilt** (patch 0009):
-buang link-dir/rlib dari-source, pin direktori sysroot prebuilt mentah.
+Rust: struktur PixelOS `sixteen` **beda total** dari AOSP-17 di blog.
+`rust/toolchain_library.go` hanya ~160 baris — **tidak ada** `hostPrebuiltTargetProps`,
+`addPrebuiltToTarget`, atau `linux-musl`. Bug nyata = satu baris hardcode
+`filepath.Join("linux-x86", …)` di `rustSetToolchainSource()`; **patch 0003** menggantinya
+dengan `config.HostPrebuiltTag(ctx.Config())` → `prebuilts/rust-toolchain/linux-arm64/1.83.0`.
+**Patch 0009 blog dibuang** (premisnya sudah ada upstream via `--sysroot=/dev/null`;
+versi awal kita menyisipkan import `slices` pada anchor import yang salah). Verifikasi
+anchor & logika: `scripts/dryrun-arm64-patches.py` (offline, tanpa menunggu CI ~25 menit).
 
 Kunci Go (dikonfirmasi dari source `cmd/go` Go 1.23.4, `build.go`):
 > “Setting `GODEBUG=installgoroot=all` restores the use of `$GOROOT/pkg/$GOOS_$GOARCH`.”
@@ -132,8 +138,9 @@ Berdasarkan blog Actinis (peta jalan lengkap setelah patch host), dinding beriku
 2. **`llvm-objdump`/`llvm-nm` x86 hardcoded** saat Cronet minta — blog pakai wrapper
    script di dir bin x86 yang mengeksekusi tool arm64 asli (bukan copy biner: ada
    ketergantungan loader musl relatif ke tree asal).
-3. **Rust sysroot double vision** — sudah ditangani patch 0003/0009 + drop Rust;
-   tunggu konfirmasi saat build.
+3. **Rust sysroot double vision** — belum ditangani (0009 dibuang karena tak
+   terbukti); patch 0003 + drop Rust saja dulu. Kalau `E0464`/`E0460`/`E0152`
+   benar-benar muncul di run #19, baru tambal berbasis bukti log.
 4. **JVM heap (metalava/SystemUI)** — sudah diantisipasi patch 0014 (`-Xmx8g`).
 5. **Missing separator/`Android.bp`** untuk rootdir; **VINTF** (vendor API 35 vs system 36).
 

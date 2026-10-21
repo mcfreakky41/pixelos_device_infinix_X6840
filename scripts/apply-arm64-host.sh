@@ -10,7 +10,9 @@
 #   (lihat run #17)
 #
 #   Referensi patch set yang terbukti: https://actinis.io/blog/building-aosp-on-arm64
-#   (patch 0001-0009). Skrip ini menerapkan padanannya + drop prebuilt arm64.
+#   Skrip ini menerapkan padanannya (subset yang terbukti berlaku di PixelOS
+#   sixteen) + drop prebuilt arm64. Patch blog yang tak berlaku/tak terbukti
+#   sengaja DILEWATI — lihat patches/arm64-host/README.md.
 #
 # SIFAT
 #   Idempoten: aman dijalankan berulang. Kalau penanda sudah ada, dilewati.
@@ -149,21 +151,38 @@ elif anchor in s:
 else:
     print("    WARN: anchor HOST_ARCH tak cocok")
 
-# (a2) tutup 'endif' tambahan pada blok 32-bit
-old_tail = '''ifneq (,$(findstring i686,$(UNAME)))$(findstring x86,$(UNAME)))
-$(error Building on a 32-bit x86 host is not supported: $(UNAME)!)
-endif
-endif
-'''
-new_tail = '''ifneq (,$(findstring i686,$(UNAME)))$(findstring x86,$(UNAME)))
-$(error Building on a 32-bit x86 host is not supported: $(UNAME)!)
-endif
-endif
-endif
-'''
-if "HOST_ARCH := arm64" in s and old_tail in s:
-    s = s.replace(old_tail, new_tail, 1); changed = True
-    print("    OK  : endif penutup ditambahkan")
+# (a2) tutup 'endif' tambahan pada blok 32-bit.
+#   Cabang arm64 menambah satu 'else' -> butuh satu 'endif' ekstra.
+#   JANGAN cocokkan teks anchor dgn persis: bentuk baris i686 BEDA antar tree
+#   (AOSP-17 di blog: 'i686,$(UNAME)))$(findstring x86,...' dgn ',' ekstra;
+#   PixelOS sixteen: 'i686,$(UNAME))$(findstring x86,...' tanpa ',').
+#   Run #18 membuktikan anchor persis itu GAGAL senyap -> 'missing endif'.
+#   Jadi: cari baris $(error 32-bit), lalu sisipkan 'endif' setelah dua 'endif'
+#   berikutnya. Idempoten lewat penanda di komentar.
+MARK_A2 = "# arm64-host: endif penutup blok HOST_ARCH"
+if "HOST_ARCH := arm64" in s and MARK_A2 not in s:
+    lines = s.split("\n")
+    inserted = False
+    for i, ln in enumerate(lines):
+        if "32-bit x86 host is not supported" in ln:
+            # hitung 'endif' berikutnya (butuh 2), sisipkan setelah yg ke-2
+            seen = 0
+            for j in range(i + 1, min(len(lines), i + 12)):
+                if lines[j].strip() == "endif":
+                    seen += 1
+                    if seen == 2:
+                        lines.insert(j + 1, MARK_A2)
+                        lines.insert(j + 2, "endif")
+                        inserted = True
+                        break
+            break
+    if inserted:
+        s = "\n".join(lines); changed = True
+        print("    OK  : endif penutup ditambahkan (blok HOST_ARCH)")
+    else:
+        print("    WARN: baris $(error 32-bit) / 2x endif tak ditemukan")
+elif MARK_A2 in s:
+    print("    SKIP: endif penutup sudah ada")
 
 # (b) HOST_PREBUILT_ARCH arm64
 old_b = '''# We don't want to move all the prebuilt host tools to a $(HOST_OS)-x86_64 dir.
@@ -324,128 +343,88 @@ else
 fi
 
 # =============================================================================
-# PATCH 0003 — build/soong/rust/toolchain_library.go: libstd linux_musl_arm64
+# PATCH 0003 — build/soong/rust/toolchain_library.go: prefix prebuilt sadar-host
+#
+#   Run #18 + dry-run membuktikan struktur Rust PixelOS sixteen BEDA TOTAL dari
+#   AOSP-17 di blog. File ini hanya ~160 baris, TIDAK ada hostPrebuiltTargetProps,
+#   TIDAK ada addPrebuiltToTarget, TIDAK ada linux-musl. Memaksakan patch model
+#   blog di sini berisiko merusak tree.
+#
+#   Bug NYATA di tree ini cuma satu baris:
+#       rustSetToolchainSource(): prefix := filepath.Join("linux-x86", ...)
+#   -> di host aarch64 path jadi prebuilts/rust-toolchain/linux-x86/... padahal
+#      toolchain arm64 kita ada di linux-arm64/... (Exec/No such file).
+#
+#   Fungsi lain (rustToolchainRustcPrebuiltFactory) SUDAH memakai
+#   config.HostPrebuiltTag(ctx.Config()) -> jadikan ini konsisten, sekaligus
+#   menghemat kode: tak perlu field/target baru.
 # =============================================================================
-step "0003" "soong/rust/toolchain_library.go: prebuilt libstd utk linux_musl_arm64"
+step "0003" "soong/rust/toolchain_library.go: prefix prebuilt ikut host (linux-arm64)"
 TL="build/soong/rust/toolchain_library.go"
 if [ -f "$TL" ]; then
   python3 - "$TL" <<'PY'
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
-changed = False
 
-a_old = '''		Linux_musl_x86_64  hostPrebuiltTargetProps
-		Linux_musl_x86     hostPrebuiltTargetProps
-'''
-a_new = '''		Linux_musl_x86_64  hostPrebuiltTargetProps
-		Linux_musl_x86     hostPrebuiltTargetProps
-		Linux_musl_arm64   hostPrebuiltTargetProps
-'''
-if "Linux_musl_arm64   hostPrebuiltTargetProps" in s:
-    print("    SKIP: field Linux_musl_arm64 sudah ada")
-elif a_old in s:
-    s = s.replace(a_old, a_new, 1); changed = True
-    print("    OK  : field Linux_musl_arm64 ditambahkan")
-else:
-    print("    WARN: anchor field struct tak cocok")
+MARK = "# arm64-host: prefix prebuilt ikut host"
+if MARK in s:
+    print("    SKIP: sudah dipatch"); sys.exit(0)
 
-b_old = '''		} else if platform == "linux-musl-x86" && ctx.Config().BuildOS == android.LinuxMusl {'''
-b_new = '''		} else if platform == "linux-musl-x86" && ctx.Config().BuildOS == android.LinuxMusl && ctx.Config().BuildArch == android.X86_64 {'''
-if "&& ctx.Config().BuildArch == android.X86_64" in s:
-    print("    SKIP: guard BuildArch x86_64 sudah ada")
-elif b_old in s:
-    s = s.replace(b_old, b_new, 1); changed = True
-    print("    OK  : guard BuildArch x86_64 ditambahkan")
-else:
-    print("    WARN: anchor linux-musl-x86 tak cocok")
+old = '''		prefix := filepath.Join("linux-x86", GetRustPrebuiltVersion(ctx))'''
+new = ('''		// arm64-host: prefix prebuilt ikut host (linux-arm64 di aarch64)''' + "\n"
+       '''		prefix := filepath.Join(config.HostPrebuiltTag(ctx.Config()), GetRustPrebuiltVersion(ctx))''')
 
-c_anchor = '''			p.Target.Linux_musl_x86.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "i686-unknown-linux-musl", rlib, solib)
-'''
-c_add = c_anchor + '''		} else if platform == "linux-arm64" && ctx.Config().BuildOS == android.LinuxMusl && ctx.Config().BuildArch == android.Arm64 {
-			p.Target.Linux_musl_arm64.addPrebuiltToTarget(ctx, name, rustDir, "linux-arm64", "aarch64-unknown-linux-musl", rlib, solib)
-'''
-if 'platform == "linux-arm64"' in s:
-    print("    SKIP: cabang linux-arm64 sudah ada")
-elif c_anchor in s:
-    s = s.replace(c_anchor, c_add, 1); changed = True
-    print("    OK  : cabang linux-arm64 ditambahkan")
-else:
-    print("    WARN: anchor addPrebuiltToTarget musl-x86 tak cocok")
+if old not in s:
+    print("    WARN: anchor rustSetToolchainSource('linux-x86') tak cocok")
+    sys.exit(0)
 
-if changed:
-    open(p, "w", encoding="utf-8").write(s)
+# pastikan import config sudah ada (memang sudah: dipakai fungsi rustc prebuilt)
+if '"android/soong/rust/config"' not in s:
+    print("    WARN: import 'android/soong/rust/config' hilang, patch dibatalkan")
+    sys.exit(0)
+
+s = s.replace(old, new, 1)
+open(p, "w", encoding="utf-8").write(s)
+print("    OK  : rustSetToolchainSource pakai HostPrebuiltTag()")
 PY
 else
   warn "$TL tidak ada"
 fi
 
-# --- 0003 (lanjutan) — stub Android.bp rust_stdlib_prebuilt_host linux-arm64 ---
-# Diperlukan agar `platform == "linux-arm64"` benar-benar terdefinisi di Soong.
-# Toolchain Rust arm64-musl sendiri adalah DROP (bukan file sumber) — lihat
-# step "Drop ARM64 Rust toolchain" di workflow.
-RUSTBP="prebuilts/rust-toolchain/linux-arm64/Android.bp"
-if [ ! -f "$RUSTBP" ]; then
-  mkdir -p "$(dirname "$RUSTBP")"
-  cat > "$RUSTBP" <<'EOF'
-rust_stdlib_prebuilt_host {
-    name: "libstd",
-    crate_name: "std",
-    sysroot: true,
-}
-EOF
-  ok "dibuat: $RUSTBP"
-else
-  skip "sudah ada: $RUSTBP"
-fi
-
 # =============================================================================
-# PATCH 0009 — build/soong/rust/builder.go: pin staticlib ke sysroot prebuilt
+# PATCH 0009 — TIDAK DITERAPKAN (sengaja)
+#
+#   Blog actinis.io memakai 0009 utk menambal "Rust sysroot double vision"
+#   (E0464/E0460/E0152) pada AOSP-17. Setelah memeriksa
+#   build/soong/rust/builder.go PixelOS sixteen (577 baris) secara langsung:
+#
+#   1. Premis blog SUDAH ditangani upstream: transformSrctoCrate() sendiri
+#      sudah menambahkan  `rustcFlags = append(rustcFlags, "--sysroot=/dev/null")`
+#      jadi sysroot implisit memang sengaja dimatikan; crate dicari lewat `-L`
+#      (makeLibFlags -> deps.linkDirs).
+#   2. Patch versi awal kita menyisipkan import "slices" pada anchor
+#      'import (\n\t"path/filepath"\n\t"runtime"\n' — PADAHAL blok import nyata
+#      di PixelOS sixteen adalah "path/filepath" lalu "strings" (TIDAK ada
+#      "runtime"). Artinya import tak pernah masuk -> kode memakai
+#      slices.DeleteFunc/(slices.Contains) GAGAL KOMPILASI.
+#   3. Filter '.rust_sysroot/' & '/libstd/linux_musl_arm64' menargetkan link-dir
+#      from-source yang HANYA muncul pada model patch 0003 versi LAMA (yang
+#      sekarang sudah dibuang). Dengan 0003 baru (fix prefix prebuilt), tak ada
+#      libstd from-source utk host, sehingga filter itu jadi no-op — sementara
+#      pemasangan `rawDir` mentah berisiko mencampur sysroot prebuilt dgn crate
+#      dari-source (justru memicu masalah yg mau dihindari).
+#
+#   Keputusan: JANGAN terapkan patch spekulatif yang belum terbukti & malah
+#   tidak bisa dikompilasi. Biarkan run #19 mengungkap error Rust NYATA (kalau
+#   ada) supaya kita menambal berdasarkan bukti, bukan dugaan. Rinciannya ada
+#   di patches/arm64-host/README.md (tabel "tidak diterapkan").
 # =============================================================================
-step "0009" "soong/rust/builder.go: pin staticlib host arm64 ke sysroot prebuilt"
-RBB="build/soong/rust/builder.go"
-if [ -f "$RBB" ]; then
-  python3 - "$RBB" <<'PY'
-import sys
-p = sys.argv[1]
-s = open(p, encoding="utf-8").read()
-if "#22): proc_macro is prebuilt-only" in s:
-    print("    SKIP: builder.go sudah dipatch"); sys.exit(0)
-
-if '"slices"' not in s:
-    s = s.replace('import (\n\t"path/filepath"\n\t"runtime"\n',
-                  'import (\n\t"path/filepath"\n\t"runtime"\n\t"slices"\n', 1)
-
-anchor = '''	mod := ctx.Module().(cc.LinkableInterface)
-	toolchain := config.FindToolchain(ctx.Os(), ctx.Arch())
-'''
-add = anchor + '''
-	if ctx.Host() && ctx.Arch().ArchType.String() == "arm64" {
-		// all-prebuilt (#22): proc_macro prebuilt-only & terikat SVH prebuilt std/core.
-		// Buang link-dir/rlib from-source, lalu pin sysroot prebuilt mentah.
-		rustPathDeps.linkDirs = slices.DeleteFunc(rustPathDeps.linkDirs, func(d string) bool {
-			return strings.Contains(d, ".rust_sysroot/") || strings.Contains(d, "/libstd/linux_musl_arm64")
-		})
-		rustPathDeps.RLibs = slices.DeleteFunc(rustPathDeps.RLibs, func(l RustLibrary) bool {
-			p := l.Path.String()
-			return strings.Contains(p, ".rust_sysroot") || strings.Contains(p, "/libstd/linux_musl_arm64")
-		})
-		rawDir := filepath.Join("prebuilts/rust-toolchain", ctx.Config().PrebuiltOS(),
-			config.RustDefaultVersion, "lib/rustlib", toolchain.RustTriple(), "lib")
-		if !slices.Contains(rustPathDeps.linkDirs, rawDir) {
-			rustPathDeps.linkDirs = append(rustPathDeps.linkDirs, rawDir)
-		}
-	}
-'''
-if anchor in s:
-    s = s.replace(anchor, add, 1)
-    open(p, "w", encoding="utf-8").write(s)
-    print("    OK  : builder.go dipatch")
-else:
-    print("    WARN: anchor builder.go tak cocok")
-PY
+step "0009" "soong/rust/builder.go: DILEWATI (tidak terbukti / premis sudah ada upstream)"
+if [ -f "build/soong/rust/builder.go" ]; then
+  skip "0009 tidak diterapkan — lihat komentar & README"
 else
-  warn "$RBB tidak ada"
+  warn "build/soong/rust/builder.go tidak ada"
 fi
 
 # =============================================================================
@@ -620,9 +599,11 @@ grep -n "HOST_PREBUILT_ARCH := arm64" build/make/core/envsetup.mk 2>/dev/null | 
 grep -n "linux-arm64" build/make/envsetup.sh 2>/dev/null | head -2
 ls -la build/make/core/clang/HOST_arm64.mk 2>/dev/null
 grep -c "linux-arm64" prebuilts/build-tools/Android.bp 2>/dev/null | sed 's/^/    build-tools linux-arm64 refs: /'
-grep -n "Linux_musl_arm64" build/soong/rust/toolchain_library.go 2>/dev/null | head -3
+grep -n "prefix prebuilt ikut host" build/soong/rust/toolchain_library.go 2>/dev/null | head -3
+grep -q 'filepath.Join("linux-x86", GetRustPrebuiltVersion' build/soong/rust/toolchain_library.go 2>/dev/null \
+  && echo "    !! MASIH ada hardcode linux-x86 di rust toolchain_library.go" \
+  || echo "    OK  : hardcode linux-x86 rust sudah hilang"
 echo "--- tambahan ---"
-ls -la prebuilts/rust-toolchain/linux-arm64/Android.bp 2>/dev/null
 grep -c "linux_musl_arm64" prebuilts/jdk/jdk21/Android.bp 2>/dev/null | sed 's/^/    jdk21 linux_musl_arm64 refs: /'
 grep -n "^[[:space:]]*int c;" system/sepolicy/tools/checkfc.c 2>/dev/null | head -1
 grep -n "Xmx8g" build/soong/scripts/jar-wrapper.sh 2>/dev/null | head -1

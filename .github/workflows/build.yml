@@ -371,7 +371,9 @@ jobs:
           #   "Rust: the real wall". Mereka mendrop toolchain Rust arm64-musl
           #   resmi (dist rust-lang) ke:
           #     prebuilts/rust-toolchain/linux-arm64/<ver>/lib/rustlib/aarch64-unknown-linux-musl/lib
-          #   lalu memakai patch 0003/0009 (sudah ada di skrip kita).
+          #   lalu memakai patch 0003/0009. Di PixelOS sixteen hanya 0003 yang
+          #   berlaku (0009 premisnya sudah ada upstream — lihat
+          #   device-tree/patches/arm64-host/README.md).
           #
           # Versi: tree PixelOS sixteen meminta RustDefaultVersion = "1.83.0"
           #   (dikonfirmasi dari build/soong/rust/config/global.go).
@@ -405,7 +407,7 @@ jobs:
           if [ -d /tmp/ruststage/lib/rustlib ]; then
             cp -a /tmp/ruststage/lib/rustlib "$RUST_DIR/$RV/lib/" 2>/dev/null || true
           fi
-          # Pastikan layout yang dibaca patch 0009:
+          # Pastikan layout yang dibaca patch 0003 (HostPrebuiltTag):
           #   <rustDir>/lib/rustlib/aarch64-unknown-linux-musl/lib
           echo ">>> layout hasil:"
           find "$RUST_DIR/$RV" -maxdepth 4 -type d 2>/dev/null | head -20 || true
@@ -420,15 +422,19 @@ jobs:
       - name: Apply ARM64 host patches (build system)
         run: |
           cd ~/android/pixelos
-          # Terapkan patch set arm64-host (padanan blog actinis patch 0001-0009).
+          # Terapkan patch set arm64-host (subset padanan blog actinis yang
+          # terbukti berlaku di PixelOS sixteen; lihat README patch).
           # Skrip idempoten; lihat scripts/apply-arm64-host.sh di device tree.
           bash "$GITHUB_WORKSPACE/device-tree/scripts/apply-arm64-host.sh" "$PWD" || true
           echo ""
           echo ">>> Konfirmasi hasil patch langsung dari tree:"
           grep -n "HOST_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_ARCH arm64 TIDAK ada"
           grep -n "HOST_PREBUILT_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_PREBUILT_ARCH arm64 TIDAK ada"
-          grep -n "Linux_musl_arm64" build/soong/rust/toolchain_library.go || echo "    !! rust toolchain_library arm64 TIDAK ada"
-          for f in prebuilts/rust-toolchain/linux-arm64/Android.bp build/make/core/clang/HOST_arm64.mk; do
+          grep -n "endif penutup blok HOST_ARCH" build/make/core/envsetup.mk || echo "    !! endif penutup HOST_ARCH TIDAK ada"
+          # Patch 0003: rustSetToolchainSource harus pakai HostPrebuiltTag (bukan linux-x86)
+          grep -n "arm64-host: prefix prebuilt ikut host" build/soong/rust/toolchain_library.go || echo "    !! rust toolchain_library TIDAK dipatch"
+          grep -q 'filepath.Join("linux-x86", GetRustPrebuiltVersion' build/soong/rust/toolchain_library.go && echo "    !! MASIH ada hardcode linux-x86 di toolchain_library.go" || echo "    OK  : hardcode linux-x86 rust hilang"
+          for f in build/make/core/clang/HOST_arm64.mk; do
             [ -f "$f" ] && echo "    ADA : $f" || echo "    !! TIDAK: $f"
           done
           grep -q "linux_musl_arm64" prebuilts/jdk/jdk21/Android.bp && echo "    OK  : jdk21 javap arm64" || echo "    !! jdk21 javap arm64 TIDAK ada"
