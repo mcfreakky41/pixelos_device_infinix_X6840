@@ -343,8 +343,15 @@ jobs:
           # Format legacy 'product-variant' akan di-parse dgn delimiter '-'
           # sehingga variant jadi kosong -> "Invalid lunch combo".
           # Gunakan format baru: lunch <product> <release> <variant>
+          # PENTING soal RELEASE config:
+          #   PixelOS HANYA punya satu release config: 'bp2a'
+          #   (lihat vendor/aosp/release/release_config_map.mk).
+          #   Default AOSP 'trunk_staging' TIDAK ADA di PixelOS ->
+          #   run #16 gagal: "panic: Missing config trunk_staging".
+          #   'bp2a' juga cocok dgn build vendor device kita
+          #   (Infinix-X6840:16/BP2A.250605.031.A3).
           echo "=== LUNCH: $(date -u) ==="
-          lunch pixelos_X6840 trunk_staging ${{ github.event.inputs.build_type || 'userdebug' }}
+          lunch pixelos_X6840 bp2a ${{ github.event.inputs.build_type || 'userdebug' }}
           echo "=== LUNCH SELESAI, cek product ==="
           echo "TARGET_PRODUCT=$TARGET_PRODUCT"
           echo "TARGET_BUILD_VARIANT=$TARGET_BUILD_VARIANT"

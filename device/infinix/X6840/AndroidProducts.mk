@@ -8,6 +8,6 @@ PRODUCT_MAKEFILES := \
     $(LOCAL_DIR)/pixelos_X6840.mk
 
 COMMON_LUNCH_CHOICES := \
-    pixelos_X6840-user \
-    pixelos_X6840-userdebug \
-    pixelos_X6840-eng
+    pixelos_X6840-bp2a-user \
+    pixelos_X6840-bp2a-userdebug \
+    pixelos_X6840-bp2a-eng
