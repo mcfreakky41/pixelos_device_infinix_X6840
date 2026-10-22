@@ -24,9 +24,15 @@ PRODUCT_MANUFACTURER := Infinix
 
 PRODUCT_GMS_CLIENTID_BASE := android-infinix
 
-# Stock build description (untuk compatibility)
-PRODUCT_BUILD_PROP_OVERRIDES += \
-    PRIVATE_BUILD_DESC="sys_tssi_64_64only_infinix-user 15 AP3A.240905.015.A2 101500043 release-keys"
-
-# Fingerprint stock (Play Integrity)
+# Catatan: `PRIVATE_BUILD_DESC` TIDAK lagi dipakai di Android 16.
+# build/make A16 tidak punya variabel ini (0 referensi di seluruh build/make)
+# dan `ro.build.description` pun sudah tidak digenerate
+# (lihat build/make/core/sysprop.mk:71-85 - hanya date/fingerprint/id/tags/type/
+# version.* yang dibuat). Menaruhnya di PRODUCT_BUILD_PROP_OVERRIDES hanya
+# menghasilkan properti asing bernama `PRIVATE_BUILD_DESC` di build.prop.
+#
+# Fingerprint memakai fingerprint stok OEM supaya aplikasi yang memfilter
+# daftar perangkat Infinix X6840 tetap mengenali perangkat ini.
+# Catatan: ROM ini ditandatangani dengan test/dev keys, jadi Play Integrity
+# "DEVICE integrity" tetap tidak akan lolos (menuntut release key OEM).
 BUILD_FINGERPRINT := transsion/tssi/tssi:15/AP3A.240905.015.A2/101500043:user/release-keys
