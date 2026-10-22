@@ -28,14 +28,20 @@ TARGET_CPU_VARIANT_RUNTIME := cortex-a55
 TARGET_2ND_ARCH :=
 TARGET_SUPPORTS_64_BIT_APPS := true
 TARGET_SUPPORTS_32_BIT_APPS := false
-TARGET_USES_64_BIT_BINDER := true
+# TARGET_USES_64_BIT_BINDER sudah deprecated di A16 (memicu warning build).
 
 TARGET_NO_BOOTLOADER := true
 
 # --- API level ---
-# Device stok = Android 16 (API 36). Target ROM = PixelOS sixteen (A16).
+# Target ROM = PixelOS sixteen (A16 / API 36).
+# Catatan: vendor stok device ini masih Android 15 (ro.vendor.build.version.sdk=35,
+# ro.board.api_level=202404) -> A16 tetap kompatibel karena
+# PLATFORM_SEPOLICY_COMPAT_VERSIONS memuat 202404.
+# PRODUCT_SHIPPING_API_LEVEL TIDAK boleh diset di sini: ia product variable
+# yang menjadi .KATI_READONLY sebelum BoardConfig.mk dibaca
+# (build/make/core/envsetup.mk:351 product_config.mk -> :368 board_config.mk).
+# Nilainya sudah diset di device.mk (file product).
 TARGET_BOARD_API_LEVEL := 36
-PRODUCT_SHIPPING_API_LEVEL := 36
 BOARD_SYSTEMSDK_VERSIONS := 36
 BOARD_SYSTEMSDK_VERSIONS += 35
 BOARD_SYSTEMSDK_VERSIONS += 34
