@@ -448,6 +448,12 @@ jobs:
           cp -r "$GITHUB_WORKSPACE/device-tree/device/infinix/X6840" device/infinix/X6840
           cp -r "$GITHUB_WORKSPACE/device-tree/vendor/infinix/X6840" vendor/infinix/X6840
 
+      - name: Check text encoding (BOM/CRLF)
+        run: |
+          cd ~/android/pixelos
+          python3 "$GITHUB_WORKSPACE/device-tree/scripts/check-text-encoding.py" \
+            device/infinix/X6840 vendor/infinix/X6840
+
       - name: Fetch vendor blobs (GitHub Release)
         run: |
           cd ~/android/pixelos

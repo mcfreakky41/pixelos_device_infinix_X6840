@@ -1,4 +1,4 @@
-﻿# Automatically generated - vendor blobs for Infinix Smart 20 (X6840)
+# Automatically generated - vendor blobs for Infinix Smart 20 (X6840)
 # Source: stock dump (vendor/odm/vendor_dlkm/odm_dlkm)
 
 LOCAL_VENDOR_PATH := vendor/infinix/X6840
@@ -2861,5 +2861,4 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_VENDOR_PATH)/proprietary/odm_dlkm/lib/modules/tran_usb_ctrl.ko:$(TARGET_COPY_OUT_ODM_DLKM)/lib/modules/tran_usb_ctrl.ko \
     $(LOCAL_VENDOR_PATH)/proprietary/odm_dlkm/lib/modules/tran_zram.ko:$(TARGET_COPY_OUT_ODM_DLKM)/lib/modules/tran_zram.ko \
     $(LOCAL_VENDOR_PATH)/proprietary/odm_dlkm/lib/modules/trans_sched.ko:$(TARGET_COPY_OUT_ODM_DLKM)/lib/modules/trans_sched.ko
-
 

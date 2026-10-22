@@ -4,6 +4,10 @@
 *.rc text eol=lf
 *.sh text eol=lf
 *.xml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+.gitignore text eol=lf
+vendor/infinix/X6840/proprietary-files.txt text eol=lf
 
 # Blob binary — jangan disentuh
 *.so binary
