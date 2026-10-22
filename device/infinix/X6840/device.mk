@@ -12,7 +12,13 @@ DEVICE_PATH := device/infinix/X6840
 PRODUCT_SHIPPING_API_LEVEL := 36
 
 # --- A/B + dynamic partitions + emulated storage ---
-$(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota/launcher.mk)
+# Catatan: 'launcher.mk' TIDAK ADA di PixelOS sixteen (error run #19:
+#   device.mk:15: build/make/target/product/virtual_ab_ota/launcher.mk does not exist).
+# File yang benar = 'launch_with_vendor_ramdisk.mk' karena X6840 launch dengan
+# Virtual A/B DAN punya partisi vendor_boot (menurut komentar AOSP, varian ini
+# lebih dipilih daripada launch.mk). Ia menyiapkan linker/e2fsck/fsck.f2fs
+# untuk vendor_ramdisk.
+$(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota/launch_with_vendor_ramdisk.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/emulated_storage.mk)
 
 # --- SoC / hardware properties ---

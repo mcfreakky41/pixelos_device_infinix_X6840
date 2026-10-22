@@ -1,6 +1,6 @@
 # STATUS PROJECT — PixelOS X6840
 
-Terakhir update: 2026-10-21 (patch 0003 dirombak + 0009 dibuang; siap run #19, target Android 16)
+Terakhir update: 2026-10-21 (run #19: semua patch ARM64 LULUS; error baru = path virtual_ab_ota di device.mk, sudah diperbaiki)
 
 ## Ringkas
 | Item | Status |
@@ -40,7 +40,8 @@ Terakhir update: 2026-10-21 (patch 0003 dirombak + 0009 dibuang; siap run #19, t
 | #16 | sixteen | failure | `panic: Missing config trunk_staging` | **Go BERES** (`GODEBUG=installgoroot=all` → 298 `.a`); akar baru: release config salah |
 | #17 | **sixteen** | **jalan** | — | `lunch pixelos_X6840 bp2a userdebug` (bukan `trunk_staging`) |
 | #18 | sixteen | failure | **`build/make/core/envsetup.mk:1072: error: missing 'endif'`** (patch a2 anchor persis tak cocok senyap) | anchor `(a2)` dibuat tahan-bentuk + dry-run offline |
-| #19 | sixteen | — | — (siap dispatch) | 0003 dirombak (fix prefix prebuilt), 0009 dibuang, 0002(a2) diperbaiki |
+| #19 | sixteen | failure | `device.mk:15: build/make/target/product/virtual_ab_ota/launcher.mk does not exist` | **semua patch ARM64 lulus (step 14 ✓)**; ganti ke `launch_with_vendor_ramdisk.mk` |
+| #20 | sixteen | — | — (siap dispatch) | device.mk diperbaiki (virtual_ab_ota) |
 
 ## Pelajaran ARM64-host (bagian tersulit kedua)
 Manifest PixelOS **hanya menyediakan prebuilt host x86**; runner arm64 butuh tambahan.

@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 $Repo   = "E:\PixelOS-X6840\repo"
 $Remote = "mcfreakky41/pixelos_device_infinix_X6840"
 $Branch = "main"
-$Msg    = "arm64-host: rework patch 0003 (HostPrebuiltTag), drop unproven 0009, fix dry-run range check"
+$Msg    = "fix(device): virtual_ab_ota launcher.mk tidak ada di A16 -> launch_with_vendor_ramdisk.mk (fix run #19)"
 
 # --- git tersedia? ---
 $git = "C:\Users\Administrator\pixelos-smart20\tools\git\cmd\git.exe"
