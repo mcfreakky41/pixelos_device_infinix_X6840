@@ -41,21 +41,29 @@ BOARD_SYSTEMSDK_VERSIONS += 35
 BOARD_SYSTEMSDK_VERSIONS += 34
 
 # --- Kernel (prebuilt from stock dump; no public kernel source) ---
+# TARGET_PREBUILT_KERNEL consumed oleh vendor/aosp/build/tasks/kernel.mk
+# (KERNEL_BIN := $(TARGET_PREBUILT_KERNEL), tanpa kernel source).
 TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/kernel
 BOARD_KERNEL_IMAGE_NAME := Image
 BOARD_BOOT_HEADER_VERSION := 4
-BOARD_KERNEL_BASE := 0x40000000
-BOARD_KERNEL_PAGESIZE := 2048
-BOARD_KERNEL_OFFSET := 0x00008000
-BOARD_RAMDISK_OFFSET := 0x05400000
-BOARD_DTB_OFFSET := 0x07b00000
 
-# GKI: kernel di boot.img, modules di vendor_dlkm/odm_dlkm
+# Base & pagesize TIDAK ada di boot.img pada perangkat ini, melainkan di
+# vendor_boot.img (layout MTK). Nilai diambil dari header vendor_boot_a.img
+# stok: kernel_addr = 0x40080000, page_size = 4096.
+# build/make/core/Makefile:1668-1677 menaruh --base/--pagesize ke vendor_boot
+#_image saat BUILDING_VENDOR_BOOT_IMAGE=true -> identik dengan stok.
+BOARD_KERNEL_BASE := 0x40080000
+BOARD_KERNEL_PAGESIZE := 4096
+
+# Device ini punya vendor_boot (vendor ramdisk) -> generic ramdisk (init_boot)
+# harus memuat first_stage_ramdisk/ (build/make/core/Makefile:1208).
+# Efek sampingnya boot.img tidak diberi --cmdline/--base/--pagesize,
+# persis seperti boot_a_fresh.img stok (kernel_addr=0, page_size=0, cmdline kosong).
 BOARD_USES_GENERIC_KERNEL_IMAGE := true
 BOARD_INCLUDE_DTB_IN_BOOTIMG := false
 BOARD_KERNEL_CMDLINE := bootopt=64S3,32N2,64N2
 
-# Boot image: header v4, arm64 GKI
+# Boot image: header v4, arm64
 BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
 
 # --- Boot / init_boot / vendor_boot (measured from device) ---
@@ -68,8 +76,10 @@ BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true
 BOARD_USES_RECOVERY_AS_BOOT := false
 BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := false
 
-# vendor_boot cmdline (bootopt sama dengan stock)
-BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
+# Cmdline vendor_boot sama persis dengan stok (tanpa androidboot.* tambahan):
+# stock vendor_boot_a.img -> "bootopt=64S3,32N2,64N2"
+# (androidboot.selinux=permissive sengaja TIDAK dipakai: perangkat stok jalan
+#  dengan SELinux enforcing, dan kita tidak boleh menyimpang dari stok.)
 
 # --- Dynamic partitions (super) ---
 BOARD_SUPER_PARTITION_SIZE := 9663676416
