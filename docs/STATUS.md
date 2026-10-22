@@ -1,18 +1,19 @@
 # STATUS PROJECT — PixelOS X6840
 
-Terakhir update: 2026-10-21 (run #19: semua patch ARM64 LULUS; error baru = path virtual_ab_ota di device.mk, sudah diperbaiki)
+Terakhir update: 2026-10-22 (run #20 gagal karena BOM UTF-8 di `X6840-vendor.mk` — sudah diperbaiki; run #21 dispatched)
 
 ## Ringkas
 | Item | Status |
 |---|---|
-| Device tree | pushed (commit `5144fa5`) |
+| Device tree | pushed (commit `ddfdd82`) |
 | Vendor blobs | uploaded (Release blobs-v1) |
 | Kernel prebuilt | ada (34.77 MB, ARM64 valid, SHA256 AE1703…) |
 | Workflow CI | aktif, manual dispatch |
 | Runner | **ubuntu-24.04-arm** (108 GB free, build native arm64) |
 | Target | **PixelOS `sixteen` (Android 16)** |
 | Release config | **`bp2a`** (satu-satunya yg valid di PixelOS) |
-| Build terkini | run #18 (`sixteen`, userdebug, commit 75cd701) — sedang jalan (sync) |
+| Build terkini | run #21 (`sixteen`, userdebug, commit `ddfdd82`) — sedang jalan |
+| Panduan flash | [`docs/FLASHING.md`](FLASHING.md) |
 
 ## Keputusan arah
 - **Skenario C** (disetujui user): coba Android 16 dulu; fallback ke `fifteen` (A15) kalau mentok.
@@ -41,7 +42,26 @@ Terakhir update: 2026-10-21 (run #19: semua patch ARM64 LULUS; error baru = path
 | #17 | **sixteen** | **jalan** | — | `lunch pixelos_X6840 bp2a userdebug` (bukan `trunk_staging`) |
 | #18 | sixteen | failure | **`build/make/core/envsetup.mk:1072: error: missing 'endif'`** (patch a2 anchor persis tak cocok senyap) | anchor `(a2)` dibuat tahan-bentuk + dry-run offline |
 | #19 | sixteen | failure | `device.mk:15: build/make/target/product/virtual_ab_ota/launcher.mk does not exist` | **semua patch ARM64 lulus (step 14 ✓)**; ganti ke `launch_with_vendor_ramdisk.mk` |
-| #20 | sixteen | — | — (siap dispatch) | device.mk diperbaiki (virtual_ab_ota) |
+| #20 | sixteen | failure | **`vendor/infinix/X6840/X6840-vendor.mk:1: error: missing separator`** | akar = **UTF-8 BOM** (`ef bb bf`) di awal file hasil generator PowerShell; BOM menyatu ke token pertama sehingga `#` bukan komentar |
+| #21 | sixteen | **jalan** | — | BOM dibuang (commit `ddfdd82`) + guard `scripts/check-text-encoding.py` di CI |
+
+## Temuan: BOM UTF-8 = "missing separator" (run #20)
+File `.mk` yang diawali BOM **tidak bisa di-parse GNU make**:
+```
+vendor/infinix/X6840/X6840-vendor.mk:1: error: missing separator.
+```
+Byte BOM (`ef bb bf`) menyatu ke token pertama, jadi `#` tidak lagi dibaca sebagai
+awal komentar. Penyebabnya `Set-Content -Encoding UTF8` di PowerShell 5.1 yang
+selalu menulis BOM.
+
+Pencegahan (3 lapis):
+1. `scripts/gen-vendor-mk.ps1` → tulis via `[System.IO.File]::WriteAllText`
+   dengan `UTF8Encoding($false)` + baris LF paksa, lalu verifikasi.
+2. `.gitattributes` → `*.mk text eol=lf` (+ `.yml/.yaml/.gitignore/proprietary-files.txt`).
+3. `scripts/check-text-encoding.py` → step CI sebelum build; gagal **dalam hitungan
+   detik** kalau ada BOM/CRLF di file `.mk/.bp/.sh/.xml/.yml/.yaml/.rc/.cil/.te/.contexts`
+   (perkecualian direktori `proprietary/` yang isinya blob OEM).
+
 
 ## Pelajaran ARM64-host (bagian tersulit kedua)
 Manifest PixelOS **hanya menyediakan prebuilt host x86**; runner arm64 butuh tambahan.
@@ -143,13 +163,31 @@ Berdasarkan blog Actinis (peta jalan lengkap setelah patch host), dinding beriku
    terbukti); patch 0003 + drop Rust saja dulu. Kalau `E0464`/`E0460`/`E0152`
    benar-benar muncul di run #19, baru tambal berbasis bukti log.
 4. **JVM heap (metalava/SystemUI)** — sudah diantisipasi patch 0014 (`-Xmx8g`).
-5. **Missing separator/`Android.bp`** untuk rootdir; **VINTF** (vendor API 35 vs system 36).
+5. **VINTF (vendor API 35 vs system 36)** — sudah diverifikasi aman:
+   - matrix vendor mendeklarasikan `system-sdk {35}`; `BOARD_SYSTEMSDK_VERSIONS := 36 35 34`
+     dan `PLATFORM_SYSTEMSDK_VERSIONS` = rentang min..36 → kompatibel.
+   - `checkvintf --check-compat` dijalankan dengan
+     `--property ro.product.first_api_level=36` (`build/make/core/Makefile:5500`).
+   - `init` menghitung `ro.vendor.api_level` = min(level produk, `ro.board.api_level`)
+     = min(202404, 202404) = **202404** (A15) — sama seperti perangkat stok
+     (`system/core/init/property_service.cpp:1108`, tanpa `LOG(FATAL)`).
+   - `TARGET_BOARD_API_LEVEL` ternyata **tidak dipakai sama sekali** di build/make A16
+     (variabel legacy) → nilainya harmless.
+   - `PRODUCT_SHIPPING_VENDOR_API_LEVEL` **tidak** perlu di-override.
+6. **Missing separator** — sudah teratasi (BOM, lihat di atas).
 
 ## Catatan penting
 - HP JANGAN di-reboot sampai ROM siap flash
 - Semua operasi device = read-only
 - super.img (9 GB) = backup lokal saja (header gDla, tidak bisa lpunpack)
+  → **backup partisi `system_a` mentah** wajib diambil sebelum flash (lihat
+  [`docs/FLASHING.md`](FLASHING.md) §5.2)
 - vendor/bin: 100% 64-bit (0 file 32-bit) → arm64-only sudah benar
 - Kernel backup HDD **IDENTIK** dengan kernel proyek (verified SHA256)
 - Prosedur flash terbukti (dari era GSI):
   `adb reboot fastboot` → `fastboot flash system <img>` → `fastboot erase userdata` → `fastboot reboot`
+- **Hanya** `system`, `system_ext`, `product`, `vbmeta` yang di-flash.
+  `boot`/`vendor_boot`/`init_boot`/`dtbo`/`vendor`/`odm`/`*_dlkm` **tetap stok**
+  (`vendor_boot` MTK tidak bisa direproduksi `mkbootimg` AOSP; blob vendor kehilangan
+  konteks SELinux). **Jangan flash `super.img`** — isinya `vendor.img` hasil rebuild
+  yang tidak valid. Detail + rollback: [`docs/FLASHING.md`](FLASHING.md).

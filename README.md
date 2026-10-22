@@ -93,13 +93,27 @@ diperlukan, dan alasannya didokumentasikan di
 
 > Prosedur ini terbukti di perangkat. **Backup dulu**, dan pastikan kamu paham
 > risikonya — mem-flash ROM kustom bisa menyebabkan brick (lihat [NOTICE](NOTICE)).
+> Panduan lengkap: **[`docs/FLASHING.md`](docs/FLASHING.md)**.
+
+Ringkasnya, **hanya 4 partisi** yang diganti:
 
 ```bash
 adb reboot fastboot
-fastboot flash system <system.img>     # otomatis me-resize system_a
-fastboot erase userdata
+fastboot flash system      <system.img>
+fastboot flash system_ext  <system_ext.img>
+fastboot flash product     <product.img>
+fastboot --disable-verity --disable-verification flash vbmeta <vbmeta.img>
+# fastboot erase userdata   # hanya bila perlu
 fastboot reboot
 ```
+
+`boot`, `vendor_boot`, `init_boot`, `dtbo`, `vendor`, `odm`, `vendor_dlkm`,
+`odm_dlkm`, dan `system_dlkm` **tetap stok** — alasannya (format `vendor_boot`
+MTK kustom + konteks SELinux blob vendor) diuraikan di
+[`docs/FLASHING.md`](docs/FLASHING.md).
+
+> **Jangan flash `super.img`.** Isinya `vendor.img` hasil rebuild yang tidak
+> valid (konteks SELinux hilang).
 
 Catatan: `fastboot erase cache` **gagal** di perangkat ini (`Partition doesn't exist`).
 
