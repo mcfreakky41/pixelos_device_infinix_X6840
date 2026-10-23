@@ -81,6 +81,7 @@ BOARD_KERNEL_CMDLINE := bootopt=64S3,32N2,64N2
 
 # Boot image: header v4, arm64
 BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
+BOARD_MKBOOTIMG_ARGS += --kernel_offset $(BOARD_KERNEL_OFFSET) --ramdisk_offset $(BOARD_RAMDISK_OFFSET)
 
 # --- Boot / init_boot / vendor_boot (measured from device) ---
 BOARD_BOOTIMAGE_PARTITION_SIZE := 67108864
@@ -246,3 +247,4 @@ BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor
 # --- init_boot: ROM kita taruh init di init_boot ---
 BOARD_USES_INIT_BOOT := true
 TARGET_INIT_BOOT_USE_RECOVERY := false
+
