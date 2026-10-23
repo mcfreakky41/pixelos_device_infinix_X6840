@@ -1,21 +1,21 @@
-# Infinix X6840 (Smart 20) — vendor sepolicy
-# Minimal, self-contained rules. Only AOSP-defined types are referenced,
-# plus types declared here. SPDX-License-Identifier: Apache-2.0
+# Infinix X6840 (Smart 20) - vendor sepolicy
+# SPDX-License-Identifier: Apache-2.0
+#
+# Catatan Treble:
+#  - properti milik /vendor wajib memakai makro vendor_internal_prop
+#    (bukan `type ..., property_type` polos),
+#  - service /vendor hanya boleh di-find oleh app bila bertipe
+#    app_api_service (otherwise neverallow),
+#  - coredomain (mis. system_server) tidak boleh menulis properti vendor,
+#  - aturan `vendor_init vendor_file` sudah ada di AOSP, jadi tidak diulang.
 
-# --- Declare Transsion-specific types (only if not already in AOSP) ---
-type transsion_service, service_manager_type;
-type vendor_mtk_prop, property_type;
-
-# --- Allow vendor_init to load kernel modules from vendor_dlkm ---
-allow vendor_init vendor_file:dir { search open read };
-allow vendor_init vendor_file:file { open read getattr map };
-
-# --- Property access (MTK vendor props) ---
+# --- Properti khas vendor MTK ---
+vendor_internal_prop(vendor_mtk_prop)
 allow vendor_init vendor_mtk_prop:property_service set;
 allow vendor_init vendor_mtk_prop:file { read open getattr map };
-allow system_server vendor_mtk_prop:property_service set;
 
-# --- Transsion AIDL services reachable from apps ---
-allow untrusted_app_27 transsion_service:service_manager find;
+# --- Service Transsion (vendor) reachable dari app ---
+type transsion_service, app_api_service, service_manager_type;
 allow platform_app transsion_service:service_manager find;
 allow system_app transsion_service:service_manager find;
+allow untrusted_app_all transsion_service:service_manager find;

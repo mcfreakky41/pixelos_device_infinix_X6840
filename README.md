@@ -8,8 +8,7 @@
 Device tree **device-specific** untuk **Infinix Smart 20 (X6840 / X6840B)**,
 dibangun dari nol — bukan GSI.
 
-> ⚠️ **Status: Work In Progress.** Device tree sedang dibangun; lihat
-> [`docs/STATUS.md`](docs/STATUS.md) untuk progres terkini dan riwayat build.
+> **Status: Work In Progress** | Target: **PixelOS sixteen (Android 16)** | Build terkini: **run #42** (in_progress) | Lihat [`docs/STATUS.md`](docs/STATUS.md) untuk progres & riwayat lengkap.
 
 ---
 
