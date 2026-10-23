@@ -1,4 +1,4 @@
-﻿name: Build PixelOS for Infinix Smart 20 (X6840)
+name: Build PixelOS for Infinix Smart 20 (X6840)
 
 on:
   workflow_dispatch:
