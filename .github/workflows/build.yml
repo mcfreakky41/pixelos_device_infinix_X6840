@@ -304,7 +304,7 @@ jobs:
           # MASALAH: manifest PixelOS tak punya Clang host arm64
           #   (prebuilts/clang/host/linux-arm64 kosong di branch main).
           #   Branch 'mirror-goog-main-prebuilts' PUNYA arm64 Clang
-          #   (clang-r584948b / r596125 / r614150) ââ- terverifikasi.
+          #   (clang-r584948b / r596125 / r614150) ï¿½ï¿½- terverifikasi.
           #
           # Versi yang DIMINTA tree (dikonfirmasi dari soong global.go):
           #   ClangDefaultVersion      = "clang-r547379"
@@ -519,47 +519,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-
-      - name: Fix source tree (patch broken PixelOS sixteen files)
-        run: |
-          cd ~/android/pixelos
-          echo ">>> Fixing prebuilts/build-tools/Android.bp syntax error..."
-          # Error: expected "}", found Ident at line ~100
-          if [ -f prebuilts/build-tools/Android.bp ]; then
-            # Fix missing closing brace before flex module
-                        # Use sed to insert missing } before flex module
-            sed -i '/^prebuilt_build_tool {/,/^    }$/ { /name: "flex"/i    }
-}' prebuilts/build-tools/Android.bp 2>/dev/null || true
-            # Fallback python fix if sed did not work
-            python3 -c "
-import sys
-with open('prebuilts/build-tools/Android.bp') as f: t=f.read()
-if 'name: "flex"' in t and '    }
-    prebuilt_build_tool {
-        name: "flex"' not in t:
-    t=t.replace('    }
-    prebuilt_build_tool {
-        name: "flex"', '    }
-    }
-    prebuilt_build_tool {
-        name: "flex"')
-    open('prebuilts/build-tools/Android.bp','w').write(t)
-    print('Fixed')
-"
-          fi
-          echo ">>> Fixing broken hardware/qcom symlinks..."
-          for dir in hardware/qcom/sdm845 hardware/qcom/sm8150 hardware/qcom/sm7250; do
-            bp="\$dir/Android.bp"
-            if [ -L "\$bp" ]; then
-              target=$(readlink "\$bp")
-              if [ ! -e "\$dir/\$target" ]; then
-                echo "  Removing broken symlink: \$bp -> \$target"
-                rm -f "\$bp"
-                echo "// Stub to satisfy soong (original symlink was broken)" > "\$bp"
-              fi
-            fi
-          done
-          echo ">>> Source tree fixes applied."
 
       - name: Build
         run: |
