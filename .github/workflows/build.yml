@@ -1,4 +1,4 @@
-name: Build PixelOS for Infinix Smart 20 (X6840)
+﻿name: Build PixelOS for Infinix Smart 20 (X6840)
 
 on:
   workflow_dispatch:
@@ -409,7 +409,7 @@ jobs:
             for comp in rustc "rust-std-${TRIPLE}" cargo clippy-preview rustfmt-preview rust-src; do
               if [ -d "$SRC/$comp" ]; then
                 echo ">>> pasang komponen: $comp"
-                bash "$SRC/$comp/install.sh" --prefix=/tmp/ruststage --disable-ldconfig
+                ( cd "$SRC/$comp" && chmod +x install.sh && ./install.sh --prefix=/tmp/ruststage --disable-ldconfig )
               else
                 echo ">>> (komponen $comp tidak ada di dist, lewati)"
               fi
