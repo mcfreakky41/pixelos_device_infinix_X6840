@@ -560,7 +560,8 @@ jobs:
           ( while true; do sleep 300; echo "[heartbeat] $(date -u) build masih jalan"; done ) &
           HB=$!
           echo "=== MULAI mka bacon: $(date -u) ==="
-          if ! stdbuf -oL -eL mka bacon -j$JOBS 2>&1 | tee build.log; then
+          # mka adalah shell function (dari envsetup.sh), stdbuf tidak bisa jalanin function.
+          if ! mka bacon -j$JOBS 2>&1 | tee build.log; then
             echo "=== BUILD GAGAL ==="
             tail -300 build.log
             kill $HB 2>/dev/null || true
