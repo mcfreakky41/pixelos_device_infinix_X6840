@@ -199,3 +199,14 @@ Berdasarkan blog Actinis (peta jalan lengkap setelah patch host), dinding beriku
 | BoardConfig mkbootimg | Tambah `--kernel_offset` dan `--ramdisk_offset` ke BOARD_MKBOOTIMG_ARGS. |
 | CI Rust arm64 | Fix symlink librustc_driver ke prebuilts/rust/.../lib64/ tanpa bergantung cd (langsung link per-file + validasi). |
 | Build terkini | run #26 (4ff4b26) - in_progress, setelah fix step Rust. |
+
+## Update 2026-10-23 (run 36-42)
+| Item | Status |
+|---|---|
+| Bootstrap blueprint | Error: prebuilts/build-tools/Android.bp:100:9 expected } found Ident + broken symlinks hardware/qcom/*/Android.bp -> gps/os_pickup.bp |
+| Fix | scripts/fix-source-tree.sh: python fix missing brace + replace broken qcom symlinks with stubs |
+| Rust toolchain | Fixed: root install.sh --components, rust-src non-fatal, lib64 symlink hardened |
+| mtk.te | Fixed: vendor_internal_prop macro, app_api_service, removed neverallow violations |
+| BOARD_MAIN_SIZE | Fixed: 9659482112 (super - 4MiB) |
+| Partition sizes | Unset dynamic partition sizes (build computes minimum) |
+| Build terkini | run #42 (sha 039b966) - in_progress |
