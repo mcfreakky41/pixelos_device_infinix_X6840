@@ -424,7 +424,7 @@ jobs:
           # librustc_driver (arch arm64, bukan x86) sbg symlink.
           mkdir -p "$D/lib64"
           if ! ls "$D/lib64"/* >/dev/null 2>&1; then
-            ( cd "/lib64" && ln -sf ../lib/librustc_driver-*.so . )
+            ( cd "$D/lib64" && ln -sf ../lib/librustc_driver-*.so . )
           fi
 
           echo ">>> layout:"; find "$D" -maxdepth 4 -type d | head -20
@@ -585,3 +585,4 @@ jobs:
           path: /home/runner/android/pixelos/build.log
           if-no-files-found: ignore
           retention-days: 7
+
