@@ -408,7 +408,7 @@ jobs:
             echo ">>> komponen tersedia:"; ls "$SRC"
             # Dist gabungan rust hanya punya install.sh di ROOT (bukan per komponen).
             # Pakai --components dari root installer (cara resmi rust-lang).
-            COMPONENTS="rustc,cargo,rust-std-${TRIPLE},rust-src,clippy-preview,rustfmt-preview"
+            COMPONENTS="rustc,cargo,rust-std-${TRIPLE},clippy-preview,rustfmt-preview"
             if [ -f "$SRC/install.sh" ]; then
               echo ">>> install via root install.sh --components=$COMPONENTS"
               ( cd "$SRC" && sh ./install.sh --prefix=/tmp/ruststage --disable-ldconfig --components="$COMPONENTS" )
