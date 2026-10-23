@@ -51,11 +51,6 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/mcRegistry/ce4550edbcb1662566b006ebcb303050.tabin:$(TARGET_COPY_OUT_VENDOR)/app/mcRegistry/ce4550edbcb1662566b006ebcb303050.tabin \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/mcRegistry/df1edda8627911e980ae507b9d9a7e7d.tabin:$(TARGET_COPY_OUT_VENDOR)/app/mcRegistry/df1edda8627911e980ae507b9d9a7e7d.tabin \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/mcRegistry/e97c270ea5c44c58bcd3384a2fa2539e.tabin:$(TARGET_COPY_OUT_VENDOR)/app/mcRegistry/e97c270ea5c44c58bcd3384a2fa2539e.tabin \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/NetworkStackGoogleGoResOverlay/NetworkStackGoogleGoResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/app/NetworkStackGoogleGoResOverlay/NetworkStackGoogleGoResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/NetworkStackGoogleResOverlay/NetworkStackGoogleResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/app/NetworkStackGoogleResOverlay/NetworkStackGoogleResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/NetworkStackResOverlay/NetworkStackResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/app/NetworkStackResOverlay/NetworkStackResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/TetheringGoogleResOverlay/TetheringGoogleResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/app/TetheringGoogleResOverlay/TetheringGoogleResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/TetheringResOverlay/TetheringResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/app/TetheringResOverlay/TetheringResOverlay.apk \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/aee_aedv64_v2:$(TARGET_COPY_OUT_VENDOR)/bin/aee_aedv64_v2 \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/aee_dumpstatev_v2:$(TARGET_COPY_OUT_VENDOR)/bin/aee_dumpstatev_v2 \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/aeev_v2:$(TARGET_COPY_OUT_VENDOR)/bin/aeev_v2 \
@@ -1932,16 +1927,6 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/lib64/vendor.trustonic.tui-V1-ndk.so:$(TARGET_COPY_OUT_VENDOR)/lib64/vendor.trustonic.tui-V1-ndk.so \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/lib64/vpp_hdrmeta_handler_plugin.so:$(TARGET_COPY_OUT_VENDOR)/lib64/vpp_hdrmeta_handler_plugin.so \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/media/license.lic:$(TARGET_COPY_OUT_VENDOR)/media/license.lic \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/CellbroadcastUIResOverlay/CellbroadcastUIResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/CellbroadcastUIResOverlay/CellbroadcastUIResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/ConnectivityResOverlay/ConnectivityResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/ConnectivityResOverlay/ConnectivityResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/FrameworkResOverlay/FrameworkResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/FrameworkResOverlay/FrameworkResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/FrameworkResOverlayExt/FrameworkResOverlayExt.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/FrameworkResOverlayExt/FrameworkResOverlayExt.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/MtkSettingsResOverlay/MtkSettingsResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/MtkSettingsResOverlay/MtkSettingsResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/MtkTelephonyServiceResOverlay/MtkTelephonyServiceResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/MtkTelephonyServiceResOverlay/MtkTelephonyServiceResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/SettingsProviderResOverlay/SettingsProviderResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/SettingsProviderResOverlay/SettingsProviderResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/SystemUIResOverlay/SystemUIResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/SystemUIResOverlay/SystemUIResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/WifiResMainlineOverlay/WifiResMainlineOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/WifiResMainlineOverlay/WifiResMainlineOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/WifiResOverlay/WifiResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/WifiResOverlay/WifiResOverlay.apk \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/res/images/lcd_test_00.png:$(TARGET_COPY_OUT_VENDOR)/res/images/lcd_test_00.png \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/res/images/lcd_test_01.png:$(TARGET_COPY_OUT_VENDOR)/res/images/lcd_test_01.png \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/res/images/lcd_test_02.png:$(TARGET_COPY_OUT_VENDOR)/res/images/lcd_test_02.png \

@@ -269,7 +269,7 @@ jobs:
             prebuilts/go/linux-arm64 prebuilts/go/linux-x86 \
             prebuilts/clang/host/linux-arm64 prebuilts/clang/host/linux-x86 \
             prebuilts/build-tools/linux-arm64 prebuilts/build-tools/linux-x86 \
-            prebuilts/rust-toolchain/linux-arm64 prebuilts/rust-toolchain/linux-x86 \
+            prebuilts/rust/linux-arm64 prebuilts/rust/linux-x86 \
             prebuilts/jdk/jdk21/linux-arm64 prebuilts/jdk/jdk21/linux-x86 \
             prebuilts/sdk prebuilts/misc/linux-arm64 prebuilts/misc/linux-x86 ; do
             if [ -e "$p" ]; then
@@ -288,8 +288,11 @@ jobs:
           echo "=== isi prebuilts/clang/host ==="
           ls prebuilts/clang/host 2>/dev/null || true
           echo ""
-          echo "=== isi prebuilts/rust-toolchain ==="
-          ls prebuilts/rust-toolchain 2>/dev/null || true
+          echo "=== isi prebuilts/rust ==="
+          ls prebuilts/rust 2>/dev/null || true
+          echo ""
+          echo "=== isi prebuilts/rust/linux-arm64 (jika ada) ==="
+          ls prebuilts/rust/linux-arm64 2>/dev/null || true
           echo ""
           echo "=== isi prebuilts/jdk ==="
           ls prebuilts/jdk 2>/dev/null || true
@@ -363,61 +366,86 @@ jobs:
         run: |
           cd ~/android/pixelos
           # ============================================================
-          # MASALAH: prebuilts/rust-toolchain TIDAK punya linux-arm64 sama sekali
-          #   (hanya linux-x86, linux-musl-x86, darwin-x86, windows-x86).
-          #   Rust host dipakai ART/dex2oat -> tanpa ini build gagal.
+          # MASALAH: prebuilts/rust hanya punya linux-x86, linux-musl-x86,
+          #   darwin-x86, windows-x86. Host arm64 tidak ada.
+          #   config.HostPrebuiltTag() = config.PrebuiltOS() = "linux-arm64"
+          #   (build/soong/rust/config/global.go:143-149), dan RustPath =
+          #   prebuilts/rust/<tag>/<versi> (global.go:99-107).
+          #   Versi wajib 1.83.0 (global.go:28 RustDefaultVersion).
           #
-          # Referensi: blog actinis.io "Building AOSP on ARM64" — bagian
-          #   "Rust: the real wall". Mereka mendrop toolchain Rust arm64-musl
-          #   resmi (dist rust-lang) ke:
-          #     prebuilts/rust-toolchain/linux-arm64/<ver>/lib/rustlib/aarch64-unknown-linux-musl/lib
-          #   lalu memakai patch 0003/0009. Di PixelOS sixteen hanya 0003 yang
-          #   berlaku (0009 premisnya sudah ada upstream — lihat
-          #   device-tree/patches/arm64-host/README.md).
+          # Layout yang dibutuhkan soong (diverifikasi dari sumber):
+          #   prebuilts/rust/soong/rustprebuilts.go:
+          #     getRustLibDir() = "<versi>/lib/rustlib"
+          #     addPrebuiltToTarget(dir = platform/rustDir/arch/lib)
+          #       => linux-arm64/1.83.0/lib/rustlib/aarch64-unknown-linux-gnu/lib
+          #     getPrebuilt() ERROR kalau jumlah libstd-*.rlib / *.so != 1.
+          #   prebuilts/rust/Android.bp:539-545:
+          #     toolchain_prebuilt_src: "bin/rustc"
+          #     toolchain_deps: ["lib/*", "lib64/*"]
+          #       => direktori lib64/ WAJIB ada dan TIDAK boleh kosong
+          #          (glob kosong = error soong).
+          #   prebuilts/rust/Android.bp:74:
+          #     stdlibs_src_path = "lib/rustlib/src/rust/"
+          #       => butuh komponen rust-src (dipakai utk build stdlib device).
           #
-          # Versi: tree PixelOS sixteen meminta RustDefaultVersion = "1.83.0"
-          #   (dikonfirmasi dari build/soong/rust/config/global.go).
+          # Sumber: dist resmi rust-lang utk host aarch64-unknown-linux-gnu.
           # ============================================================
-          RUST_DIR="prebuilts/rust-toolchain/linux-arm64"
           RV="1.83.0"
-          if [ -d "$RUST_DIR/$RV/lib/rustlib/aarch64-unknown-linux-musl/lib" ]; then
-            echo ">>> rust arm64-musl sudah ada, lewati"
-            ls "$RUST_DIR/$RV/lib/rustlib/" || true
-            exit 0
-          fi
-          echo ">>> unduh official rust dist aarch64-unknown-linux-musl $RV"
-          rm -rf /tmp/rustdrop && mkdir -p /tmp/rustdrop
-          cd /tmp/rustdrop
-          curl -fL --retry 3 -o rust.tar.gz \
-            "https://static.rust-lang.org/dist/rust-${RV}-aarch64-unknown-linux-musl.tar.gz"
-          ls -la rust.tar.gz
-          tar xzf rust.tar.gz
-          cd ~/android/pixelos
-          mkdir -p "$RUST_DIR/$RV"
-          # Salin komponen inti + rustlib (termasuk sysroot std/core/proc_macro).
-          SRC="/tmp/rustdrop/rust-${RV}-aarch64-unknown-linux-musl"
-          for comp in rustc rust-std rustc-dev cargo; do
-            if [ -d "$SRC/$comp" ]; then
-              echo ">>> pasang komponen: $comp"
-              ( cd "$SRC/$comp" && tar xzf install.sh 2>/dev/null || true )
-              # pakai install.sh resmi ke prefix sementara lalu salin
-              bash "$SRC/$comp/install.sh" --prefix="/tmp/ruststage" --disable-ldconfig >/dev/null 2>&1 || true
-            fi
-          done
-          if [ -d /tmp/ruststage/lib/rustlib ]; then
-            cp -a /tmp/ruststage/lib/rustlib "$RUST_DIR/$RV/lib/" 2>/dev/null || true
-          fi
-          # Pastikan layout yang dibaca patch 0003 (HostPrebuiltTag):
-          #   <rustDir>/lib/rustlib/aarch64-unknown-linux-musl/lib
-          echo ">>> layout hasil:"
-          find "$RUST_DIR/$RV" -maxdepth 4 -type d 2>/dev/null | head -20 || true
-          if [ -d "$RUST_DIR/$RV/lib/rustlib/aarch64-unknown-linux-musl/lib" ]; then
-            echo ">>> OK: sysroot arm64-musl tersedia"
-            ls "$RUST_DIR/$RV/lib/rustlib/aarch64-unknown-linux-musl/lib" | head -10 || true
+          TRIPLE="aarch64-unknown-linux-gnu"
+          D="prebuilts/rust/linux-arm64/$RV"
+          LIBDIR="$D/lib/rustlib/$TRIPLE/lib"
+
+          if [ -x "$D/bin/rustc" ] && [ -d "$D/lib/rustlib/src/rust/library" ] && ls "$LIBDIR"/libstd-*.rlib >/dev/null 2>&1; then
+            echo ">>> rust host arm64 sudah lengkap, lewati unduhan"
           else
-            echo ">>> !! sysroot arm64-musl TIDAK ditemukan — periksa layout"
+            echo ">>> unduh dist resmi rust $RV ($TRIPLE)"
+            rm -rf /tmp/rustdrop /tmp/ruststage
+            mkdir -p /tmp/rustdrop /tmp/ruststage
+            curl -fL --retry 3 -o /tmp/rustdrop/rust.tar.gz \
+              "https://static.rust-lang.org/dist/rust-${RV}-${TRIPLE}.tar.gz"
+            tar xzf /tmp/rustdrop/rust.tar.gz -C /tmp/rustdrop
+            SRC="/tmp/rustdrop/rust-${RV}-${TRIPLE}"
+            echo ">>> komponen tersedia:"; ls "$SRC"
+            for comp in rustc "rust-std-${TRIPLE}" cargo clippy-preview rustfmt-preview rust-src; do
+              if [ -d "$SRC/$comp" ]; then
+                echo ">>> pasang komponen: $comp"
+                bash "$SRC/$comp/install.sh" --prefix=/tmp/ruststage --disable-ldconfig
+              else
+                echo ">>> (komponen $comp tidak ada di dist, lewati)"
+              fi
+            done
+            mkdir -p "$D"
+            cp -a /tmp/ruststage/. "$D/"
+            rm -rf /tmp/rustdrop /tmp/ruststage
           fi
-          rm -rf /tmp/rustdrop /tmp/ruststage
+
+          # lib64/* dipakai toolchain_deps rustc; dist resmi tidak punya
+          # libc++.so/libunwind.so (itu artefak build Android), jadi cukup
+          # librustc_driver (arch arm64, bukan x86) sbg symlink.
+          mkdir -p "$D/lib64"
+          if ! ls "$D/lib64"/* >/dev/null 2>&1; then
+            ln -sf ../lib/librustc_driver-*.so "$D/lib64/"
+          fi
+
+          echo ">>> layout:"; find "$D" -maxdepth 4 -type d | head -20
+          "$D/bin/rustc" --version || { echo "!! bin/rustc tidak bisa jalan"; exit 1; }
+          echo ">>> sysroot: $("$D/bin/rustc" --print sysroot)"
+          ls "$D/lib/rustlib/src/rust/library" >/dev/null 2>&1 \
+            && echo "    OK  : rust-src ada (lib/rustlib/src/rust/library)" \
+            || { echo "    !! rust-src TIDAK ada"; exit 1; }
+          ls "$D/lib64"/* >/dev/null 2>&1 \
+            && echo "    OK  : lib64/ tidak kosong" \
+            || { echo "    !! lib64/ kosong"; exit 1; }
+
+          n_rlib=$(ls "$LIBDIR"/libstd-*.rlib 2>/dev/null | wc -l)
+          n_so=$(ls "$LIBDIR"/libstd-*.so 2>/dev/null | wc -l)
+          echo ">>> libstd di $LIBDIR: rlib=$n_rlib so=$n_so"
+          if [ "$n_rlib" != "1" ] || [ "$n_so" != "1" ]; then
+            echo "!! getPrebuilt() butuh TEPAT 1 libstd-*.rlib dan 1 libstd-*.so"
+            ls -la "$LIBDIR" | head -20 || true
+            exit 1
+          fi
+          echo ">>> OK: rust host arm64 siap"
 
       - name: Apply ARM64 host patches (build system)
         run: |
@@ -431,9 +459,17 @@ jobs:
           grep -n "HOST_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_ARCH arm64 TIDAK ada"
           grep -n "HOST_PREBUILT_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_PREBUILT_ARCH arm64 TIDAK ada"
           grep -n "endif penutup blok HOST_ARCH" build/make/core/envsetup.mk || echo "    !! endif penutup HOST_ARCH TIDAK ada"
-          # Patch 0003: rustSetToolchainSource harus pakai HostPrebuiltTag (bukan linux-x86)
-          grep -n "arm64-host: prefix prebuilt ikut host" build/soong/rust/toolchain_library.go || echo "    !! rust toolchain_library TIDAK dipatch"
-          grep -q 'filepath.Join("linux-x86", GetRustPrebuiltVersion' build/soong/rust/toolchain_library.go && echo "    !! MASIH ada hardcode linux-x86 di toolchain_library.go" || echo "    OK  : hardcode linux-x86 rust hilang"
+          # PATCH 0003 sengaja di-SKIP: prefix crate source "linux-x86" itu
+          # arch-independent (hanya sumber crate, bukan binary host), dan
+          # mengubahnya justru berisiko. Yang dipatch adalah config toolchain
+          # (0016, rust/config/arm_linux_host.go) + prebuilt std (0017).
+          grep -q 'filepath.Join("linux-x86", GetRustPrebuiltVersion' build/soong/rust/toolchain_library.go \
+            && echo "    OK  : hardcode crate linux-x86 dipertahankan (PATCH 0003 di-skip)" \
+            || echo "    CATATAN: hardcode linux-x86 tidak ada (PATCH 0003 terpasang?)"
+          grep -n "arm64-host: toolchain rust host glibc untuk aarch64" build/soong/rust/config/arm_linux_host.go || echo "    !! PATCH 0016 tidak terpasang"
+          grep -n "linuxGlibcArm64ToolchainFactory" build/soong/rust/config/arm_linux_host.go || echo "    !! factory glibc arm64 tidak ada"
+          grep -n "arm64-host: prebuilt std Rust untuk host aarch64" prebuilts/rust/soong/rustprebuilts.go || echo "    !! PATCH 0017 tidak terpasang"
+          grep -n "Linux_glibc_arm64" prebuilts/rust/soong/rustprebuilts.go | head -3
           for f in build/make/core/clang/HOST_arm64.mk; do
             [ -f "$f" ] && echo "    ADA : $f" || echo "    !! TIDAK: $f"
           done

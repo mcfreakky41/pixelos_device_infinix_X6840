@@ -54,11 +54,21 @@ BOARD_KERNEL_IMAGE_NAME := Image
 BOARD_BOOT_HEADER_VERSION := 4
 
 # Base & pagesize TIDAK ada di boot.img pada perangkat ini, melainkan di
-# vendor_boot.img (layout MTK). Nilai diambil dari header vendor_boot_a.img
-# stok: kernel_addr = 0x40080000, page_size = 4096.
-# build/make/core/Makefile:1668-1677 menaruh --base/--pagesize ke vendor_boot
-#_image saat BUILDING_VENDOR_BOOT_IMAGE=true -> identik dengan stok.
-BOARD_KERNEL_BASE := 0x40080000
+# vendor_boot.img (layout MTK). Header vendor_boot_a.img stok:
+#   kernel_addr  = 0x40080000
+#   ramdisk_addr = 0x47c80000
+#   page_size    = 4096
+# PENTING: mkbootimg menulis kernel_addr = base + kernel_offset (default
+# 0x00008000) dan ramdisk_addr = base + ramdisk_offset
+# (system/tools/mkbootimg/mkbootimg.py:158,160), jadi --base TIDAK sama
+# dengan kernel_addr. Base yang benar = 0x40080000 - 0x8000 = 0x40078000,
+# ramdisk_offset = 0x47c80000 - 0x40078000 = 0x07c08000.
+# CATATAN: tags_addr/dtb_addr stok belum terverifikasi -> pakai default
+# mkbootimg. vendor_boot.img TIDAK di-flash (kita pakai stok), jadi ini
+# hanya memengaruhi image hasil build, bukan proses flashing.
+BOARD_KERNEL_BASE := 0x40078000
+BOARD_KERNEL_OFFSET := 0x00008000
+BOARD_RAMDISK_OFFSET := 0x07c08000
 BOARD_KERNEL_PAGESIZE := 4096
 
 # Device ini punya vendor_boot (vendor ramdisk) -> generic ramdisk (init_boot)
@@ -122,6 +132,53 @@ BOARD_ODMIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_ODM_DLKMIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_SYSTEM_DLKMIMAGE_FILE_SYSTEM_TYPE := ext4
+
+# --- Pengecualian build untuk device berbasis dump blob ---
+# build/make/core/Makefile:128-162 (fork PixelOS identik) menjalankan
+# check-non-elf-file-checked untuk setiap PRODUCT_COPY_FILES yang tujuannya
+# mengandung komponen bin/lib/lib64. Blob vendor/odm kita memang ELF dan
+# diletakkan di sana -> build berhenti dengan
+#   "found ELF prebuilt in PRODUCT_COPY_FILES".
+# Flag ini adalah escape hatch resmi AOSP (board_config.mk:178).
+BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true
+
+# build/make/core/Makefile:105-124: file VINTF di PRODUCT_COPY_FILES
+# (vendor/etc/vintf/% dan odm/etc/vintf/%) juga menghentikan build.
+# Kita SENGAJA menyalin manifest vintf stok apa adanya (bukan merge lewat
+# DEVICE_MANIFEST_FILE) supaya isinya identik dengan /vendor stok.
+# Flag ini escape hatch resmi AOSP (board_config.mk:187).
+BUILD_BROKEN_VINTF_PRODUCT_COPY_FILES := true
+
+# CATATAN: APK di PRODUCT_COPY_FILES TIDAK punya escape hatch
+# (core/Makefile:101-104, error tanpa syarat). 15 APK vendor (app/overlay)
+# karena itu dipindah ke modul Soong di vendor/infinix/X6840/Android.bp.
+
+# --- Lokasi file per partisi (semua partisi device ini terpisah) ---
+# build/make/core/board_config.mk punya check_image_config() yang MEWAJIBKAN
+# TARGET_COPY_OUT_<X> bernilai persis '<X>' bila BOARD_<X>IMAGE_FILE_SYSTEM_TYPE
+# diset. Device ini punya partisi terpisah: system_ext, product, vendor, odm,
+# vendor_dlkm, odm_dlkm, system_dlkm -> semua wajib diset eksplisit.
+# Tanpa ini build error (run #22):
+#   board_config.mk:693: error: TARGET_COPY_OUT_VENDOR must be set to 'vendor'
+#                     to use a vendor image.
+# Nilai yang diizinkan (board_config.mk:675/791/833/873):
+#   vendor         : vendor | system/vendor
+#   product        : product | system/product
+#   system_ext     : system_ext | system/system_ext
+#   odm            : odm | system/vendor/odm | vendor/odm
+#   vendor_dlkm    : vendor_dlkm | system/vendor/vendor_dlkm | vendor/vendor_dlkm
+#   odm_dlkm       : odm_dlkm | system/vendor/odm_dlkm | vendor/odm_dlkm
+#   system_dlkm    : system_dlkm | system/system_dlkm
+# File blob vendor/odm di vendor/infinix/X6840/X6840-vendor.mk memakai
+# $(TARGET_COPY_OUT_VENDOR)/... dan $(TARGET_COPY_OUT_ODM)/... sehingga otomatis
+# ikut mengarah ke partisi yang benar.
+TARGET_COPY_OUT_VENDOR := vendor
+TARGET_COPY_OUT_PRODUCT := product
+TARGET_COPY_OUT_SYSTEM_EXT := system_ext
+TARGET_COPY_OUT_ODM := odm
+TARGET_COPY_OUT_VENDOR_DLKM := vendor_dlkm
+TARGET_COPY_OUT_ODM_DLKM := odm_dlkm
+TARGET_COPY_OUT_SYSTEM_DLKM := system_dlkm
 
 # userdata = f2fs (sesuai stock)
 TARGET_USERIMAGES_USE_F2FS := true

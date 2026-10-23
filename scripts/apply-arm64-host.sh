@@ -343,54 +343,28 @@ else
 fi
 
 # =============================================================================
-# PATCH 0003 — build/soong/rust/toolchain_library.go: prefix prebuilt sadar-host
+# PATCH 0003 — TIDAK DITERAPKAN (sengaja, dibalik(run #23))
 #
-#   Run #18 + dry-run membuktikan struktur Rust PixelOS sixteen BEDA TOTAL dari
-#   AOSP-17 di blog. File ini hanya ~160 baris, TIDAK ada hostPrebuiltTargetProps,
-#   TIDAK ada addPrebuiltToTarget, TIDAK ada linux-musl. Memaksakan patch model
-#   blog di sini berisiko merusak tree.
-#
-#   Bug NYATA di tree ini cuma satu baris:
+#   Versi lama menambal build/soong/rust/toolchain_library.go:
 #       rustSetToolchainSource(): prefix := filepath.Join("linux-x86", ...)
-#   -> di host aarch64 path jadi prebuilts/rust-toolchain/linux-x86/... padahal
-#      toolchain arm64 kita ada di linux-arm64/... (Exec/No such file).
+#   -> diubah jadi config.HostPrebuiltTag(ctx.Config()).
 #
-#   Fungsi lain (rustToolchainRustcPrebuiltFactory) SUDAH memakai
-#   config.HostPrebuiltTag(ctx.Config()) -> jadikan ini konsisten, sekaligus
-#   menghemat kode: tak perlu field/target baru.
+#   Setelah membaca source AOSP-16 (android-16.0.0_r1) baris per baris, prefix
+#   "linux-x86" itu BENAR dan sengaja:
+#     - rustSetToolchainSource() menunjuk KE SUMBER CRATE rustc
+#       (lib/rustlib/src/rust/library/... , vendor/compiler_builtins, ...).
+#       Sumber crate itu INDEPENDEN dari arsitektur host -> prefix linux-x86
+#       (yang memang ada di tree) sudah benar.
+#     - Yang menentukan toolchain BINARY host adalah
+#       rustToolchainRustcPrebuiltFactory() yang SUDAH memakai
+#       config.HostPrebuiltTag(ctx.Config()) -> prebuilts/rust/linux-arm64/1.83.0
+#       (lihat PATCH/workflow "Drop ARM64 Rust toolchain").
+#   Memakai HostPrebuiltTag() di sini justru membuat sumber crate hilang
+#   (tidak ada lib/rustlib/src di paket official rust-lang).
+#   => dibalik.
 # =============================================================================
-step "0003" "soong/rust/toolchain_library.go: prefix prebuilt ikut host (linux-arm64)"
-TL="build/soong/rust/toolchain_library.go"
-if [ -f "$TL" ]; then
-  python3 - "$TL" <<'PY'
-import sys
-p = sys.argv[1]
-s = open(p, encoding="utf-8").read()
-
-MARK = "# arm64-host: prefix prebuilt ikut host"
-if MARK in s:
-    print("    SKIP: sudah dipatch"); sys.exit(0)
-
-old = '''		prefix := filepath.Join("linux-x86", GetRustPrebuiltVersion(ctx))'''
-new = ('''		// arm64-host: prefix prebuilt ikut host (linux-arm64 di aarch64)''' + "\n"
-       '''		prefix := filepath.Join(config.HostPrebuiltTag(ctx.Config()), GetRustPrebuiltVersion(ctx))''')
-
-if old not in s:
-    print("    WARN: anchor rustSetToolchainSource('linux-x86') tak cocok")
-    sys.exit(0)
-
-# pastikan import config sudah ada (memang sudah: dipakai fungsi rustc prebuilt)
-if '"android/soong/rust/config"' not in s:
-    print("    WARN: import 'android/soong/rust/config' hilang, patch dibatalkan")
-    sys.exit(0)
-
-s = s.replace(old, new, 1)
-open(p, "w", encoding="utf-8").write(s)
-print("    OK  : rustSetToolchainSource pakai HostPrebuiltTag()")
-PY
-else
-  warn "$TL tidak ada"
-fi
+step "0003" "soong/rust/toolchain_library.go: prefix linux-x86 (TIDAK diubah - lihat catatan)"
+skip "sengaja tidak dipatch: prefix crate-source linux-x86 memang benar (arch-independent)"
 
 # =============================================================================
 # PATCH 0009 — TIDAK DITERAPKAN (sengaja)
@@ -586,6 +560,238 @@ else
 fi
 
 # =============================================================================
+# PATCH 0015 — build/soong/android/arch.go: OsType Linux gaining Arm64
+#
+#   Source check (AOSP android-16.0.0_r1):
+#     build/soong/android/arch.go:316
+#       Linux = newOsType("linux_glibc", Host, false, X86, X86_64)
+#     build/soong/android/arch.go:318
+#       LinuxMusl = newOsType("linux_musl", Host, false, X86, X86_64, Arm64, Arm)
+#
+#   osArchTypeMap[Linux] hanya punya X86/X86_64, sehingga property struct
+#   "target" yang dibangkitkan reflect (arch.go:1025) TIDAK punya field
+#   Linux_glibc_arm64 / Linux_arm64 / Glibc_arm64. Akibatnya host aarch64
+#   (linux_glibc + arm64) tidak bisa punya prebuilt std Rust sendiri.
+#
+#   Fix: tambahkan Arm64 ke Linux -> struct "target" otomatis dapat field
+#   Linux_glibc_arm64 (lihat arch.go:990-1020 + GetCompoundTargetField).
+#   LinuxMusl sudah punya Arm64 (baris 318) -> pola ini terbukti valid.
+# =============================================================================
+step "0015" "soong/android/arch.go: OsType Linux + Arm64 (host aarch64)"
+ARCHGO="build/soong/android/arch.go"
+if [ -f "$ARCHGO" ]; then
+  python3 - "$ARCHGO" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+
+MARK = "arm64-host: host aarch64 juga butuh varian linux_glibc_arm64"
+if MARK in s:
+    print("    SKIP: sudah dipatch"); sys.exit(0)
+
+old = '\tLinux = newOsType("linux_glibc", Host, false, X86, X86_64)'
+new = ('\t// arm64-host: host aarch64 juga butuh varian linux_glibc_arm64\n'
+       '\t// di property struct "target" (lihat PATCH 0016 & 0017).\n'
+       '\tLinux = newOsType("linux_glibc", Host, false, X86, X86_64, Arm64)')
+
+if old not in s:
+    print("    WARN: anchor 'Linux = newOsType(\"linux_glibc\"' tak cocok")
+    sys.exit(0)
+
+s = s.replace(old, new, 1)
+open(p, "w", encoding="utf-8").write(s)
+print("    OK  : Linux OsType kini dukung Arm64")
+PY
+else
+  warn "$ARCHGO tidak ada"
+fi
+
+# =============================================================================
+# PATCH 0016 — build/soong/rust/config/arm_linux_host.go: toolchain glibc arm64
+#
+#   Source check (repo yang BENAR-BENAR dipakai: PixelOS-AOSP/build_soong,
+#   branch sixteen — snippets/pixelos.xml menimpa build/soong dengan fork ini):
+#     rust/config/x86_linux_host.go
+#         registerToolchainFactory(android.Linux, android.X86_64, linuxGlibcX8664ToolchainFactory)
+#     rust/config/arm_linux_host.go:30-31
+#         registerToolchainFactory(android.LinuxMusl, android.Arm64, ...)
+#         registerToolchainFactory(android.LinuxMusl, android.Arm, ...)
+#     rust/config/arm_linux_host.go:41
+#         type toolchainLinuxArm64 struct { toolchain64Bit }
+#
+#   PENTING: di fork PixelOS, toolchainLinuxArm64 + factory musl ada di
+#   rust/config/arm_linux_host.go, BUKAN di arm64_linux_host.go (file itu
+#   hanya 25 baris: registrasi android.LinuxBionic).
+#
+#   Tidak ada toolchain untuk (android.Linux, android.Arm64) -> host aarch64
+#   glibc jatuh ke toolchainBase yang panic ("does not define a triple").
+#   Fix: turunan dari toolchainLinuxArm64 (linker/rust flags arm64 sudah ada)
+#   + triple rust "aarch64-unknown-linux-gnu" + flag glibc.
+#
+#   File ini sudah ada di srcs bootstrap_go_package (rust/config/Android.bp),
+#   jadi tidak perlu menambah file baru.
+# =============================================================================
+step "0016" "soong/rust/config/arm_linux_host.go: toolchain rust host glibc aarch64"
+RUSTCFG="build/soong/rust/config/arm_linux_host.go"
+if [ -f "$RUSTCFG" ]; then
+  python3 - "$RUSTCFG" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+
+MARK = "arm64-host: toolchain rust host glibc untuk aarch64"
+if MARK in s:
+    print("    SKIP: sudah dipatch"); sys.exit(0)
+
+old = '''\tregisterToolchainFactory(android.LinuxMusl, android.Arm64, linuxMuslArm64ToolchainFactory)
+\tregisterToolchainFactory(android.LinuxMusl, android.Arm, linuxMuslArmToolchainFactory)'''
+
+new = '''\tregisterToolchainFactory(android.LinuxMusl, android.Arm64, linuxMuslArm64ToolchainFactory)
+\tregisterToolchainFactory(android.LinuxMusl, android.Arm, linuxMuslArmToolchainFactory)
+
+\t// arm64-host: toolchain rust host glibc untuk aarch64.
+\tregisterToolchainFactory(android.Linux, android.Arm64, linuxGlibcArm64ToolchainFactory)'''
+
+append = '''
+// Specialization of the 64-bit linux rust toolchain for glibc on aarch64
+// hosts. Adds the gnu rust triple and sysroot linker flags.
+// arm64-host: toolchain rust host glibc untuk aarch64.
+type toolchainLinuxGlibcArm64 struct {
+\ttoolchainLinuxArm64
+}
+
+func (t *toolchainLinuxGlibcArm64) RustTriple() string {
+\treturn "aarch64-unknown-linux-gnu"
+}
+
+func (t *toolchainLinuxGlibcArm64) ToolchainLinkFlags() string {
+\treturn t.toolchainLinuxArm64.ToolchainLinkFlags() + " " + "${config.LinuxGlibcToolchainLinkFlags}"
+}
+
+func linuxGlibcArm64ToolchainFactory(arch android.Arch) Toolchain {
+\treturn toolchainLinuxGlibcArm64Singleton
+}
+
+var toolchainLinuxGlibcArm64Singleton Toolchain = &toolchainLinuxGlibcArm64{}
+'''
+
+if old not in s:
+    print("    WARN: anchor init() arm_linux_host.go tak cocok")
+    sys.exit(0)
+
+s = s.replace(old, new, 1)
+s += append
+open(p, "w", encoding="utf-8").write(s)
+print("    OK  : toolchainLinuxGlibcArm64 ditambahkan")
+PY
+else
+  warn "$RUSTCFG tidak ada"
+fi
+
+# =============================================================================
+# PATCH 0017 — prebuilts/rust/soong/rustprebuilts.go: prebuilt std host arm64
+#
+#   Source check (prebuilts/rust TIDAK ditimpa PixelOS -> pakai AOSP
+#   android-16.0.0_r1):
+#     - props.Target hanya punya Linux_glibc_x86_64 / Linux_glibc_x86 /
+#       Linux_musl_x86_64 / Linux_musl_x86 / Darwin_x86_64 (baris 84-90).
+#     - constructLibProps() (baris 127-135) selalu menunjuk prebuilt
+#       "linux-x86" utk BuildOS==Linux, sehingga host aarch64 akan memakai
+#       libstd x86_64 (atau tidak sama sekali).
+#     - rustToolchainFilegroupFactory() (baris 165-170) hanya punya
+#       x86_64-unknown-linux-gnu / i686-unknown-linux-gnu -> untuk arm64
+#       triple-nya jatuh ke i686 (SALAH).
+#     - getPrebuilt() (baris 51-57) ERROR kalau jumlah file match != 1,
+#       jadi di direktori linux-arm64 WAJIB ada tepat 1 libstd-*.rlib dan
+#       1 libstd-*.so (dipasang oleh workflow "Drop ARM64 Rust toolchain").
+#
+#   Fix:
+#     1) tambah field Linux_glibc_arm64 di props.Target (butuh PATCH 0015
+#        supaya field itu ada di struct "target" yang dibangkitkan reflect).
+#     2) constructLibProps(): pakai prebuilt linux-arm64 saat BuildArch=Arm64.
+#     3) rustToolchainFilegroupFactory(): triple aarch64-unknown-linux-gnu.
+#
+#   Teks new1/new2/new3 di bawah SUDAH divalidasi dgn gofmt (gofmt -l kosong).
+#   Catatan gofmt: komentar satu baris memisahkan alignment group, jadi group
+#   setelah komentar rata pada "Linux_glibc_arm64" (18 kolom).
+# =============================================================================
+step "0017" "prebuilts/rust/soong/rustprebuilts.go: prebuilt std host arm64"
+RPRE="prebuilts/rust/soong/rustprebuilts.go"
+if [ -f "$RPRE" ]; then
+  python3 - "$RPRE" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+
+MARK = "arm64-host: prebuilt std Rust untuk host aarch64"
+if MARK in s:
+    print("    SKIP: sudah dipatch"); sys.exit(0)
+
+# --- 1) props.Target ---
+old1 = '''\tTarget  struct {
+\t\tLinux_glibc_x86_64 targetProps
+\t\tLinux_glibc_x86    targetProps
+\t\tLinux_musl_x86_64  targetProps
+\t\tLinux_musl_x86     targetProps
+\t\tDarwin_x86_64      targetProps
+\t}'''
+new1 = '''\tTarget  struct {
+\t\tLinux_glibc_x86_64 targetProps
+\t\tLinux_glibc_x86    targetProps
+\t\t// arm64-host: prebuilt std Rust untuk host aarch64.
+\t\tLinux_glibc_arm64 targetProps
+\t\tLinux_musl_x86_64 targetProps
+\t\tLinux_musl_x86    targetProps
+\t\tDarwin_x86_64     targetProps
+\t}'''
+
+# --- 2) constructLibProps ---
+old2 = '''\t\tif ctx.Config().BuildOS == android.Linux {
+\t\t\tp.Target.Linux_glibc_x86_64.addPrebuiltToTarget(ctx, name, rustDir, "linux-x86", "x86_64-unknown-linux-gnu", rlib, solib)
+\t\t\tp.Target.Linux_glibc_x86.addPrebuiltToTarget(ctx, name, rustDir, "linux-x86", "i686-unknown-linux-gnu", rlib, solib)
+\t\t} else if ctx.Config().BuildOS == android.LinuxMusl {'''
+new2 = '''\t\tif ctx.Config().BuildOS == android.Linux {
+\t\t\tp.Target.Linux_glibc_x86_64.addPrebuiltToTarget(ctx, name, rustDir, "linux-x86", "x86_64-unknown-linux-gnu", rlib, solib)
+\t\t\tp.Target.Linux_glibc_x86.addPrebuiltToTarget(ctx, name, rustDir, "linux-x86", "i686-unknown-linux-gnu", rlib, solib)
+\t\t\t// arm64-host: prebuilt std Rust untuk host aarch64.
+\t\t\tif ctx.Config().BuildArch == android.Arm64 {
+\t\t\t\tp.Target.Linux_glibc_arm64.addPrebuiltToTarget(ctx, name, rustDir, "linux-arm64", "aarch64-unknown-linux-gnu", rlib, solib)
+\t\t\t}
+\t\t} else if ctx.Config().BuildOS == android.LinuxMusl {'''
+
+# --- 3) rustToolchainFilegroupFactory ---
+old3 = '''\t\tif ctx.Config().BuildOS == android.Linux {
+\t\t\tif ctx.Config().BuildArch == android.X86_64 {
+\t\t\t\tarchTriple = "x86_64-unknown-linux-gnu"
+\t\t\t} else {
+\t\t\t\tarchTriple = "i686-unknown-linux-gnu"
+\t\t\t}'''
+new3 = '''\t\tif ctx.Config().BuildOS == android.Linux {
+\t\t\tif ctx.Config().BuildArch == android.X86_64 {
+\t\t\t\tarchTriple = "x86_64-unknown-linux-gnu"
+\t\t\t} else if ctx.Config().BuildArch == android.Arm64 {
+\t\t\t\t// arm64-host: prebuilt std Rust untuk host aarch64.
+\t\t\t\tarchTriple = "aarch64-unknown-linux-gnu"
+\t\t\t} else {
+\t\t\t\tarchTriple = "i686-unknown-linux-gnu"
+\t\t\t}'''
+
+for idx, (o, n) in enumerate([(old1, new1), (old2, new2), (old3, new3)], start=1):
+    if o not in s:
+        print("    WARN: anchor #%d tak cocok, patch dibatalkan" % idx)
+        sys.exit(0)
+
+s = s.replace(old1, new1, 1)
+s = s.replace(old2, new2, 1)
+s = s.replace(old3, new3, 1)
+open(p, "w", encoding="utf-8").write(s)
+print("    OK  : props.Target + constructLibProps + archTriple arm64")
+PY
+else
+  warn "$RPRE tidak ada"
+fi
+
+# =============================================================================
 # RINGKASAN + jejak verifikasi
 # =============================================================================
 echo ""
@@ -599,10 +805,12 @@ grep -n "HOST_PREBUILT_ARCH := arm64" build/make/core/envsetup.mk 2>/dev/null | 
 grep -n "linux-arm64" build/make/envsetup.sh 2>/dev/null | head -2
 ls -la build/make/core/clang/HOST_arm64.mk 2>/dev/null
 grep -c "linux-arm64" prebuilts/build-tools/Android.bp 2>/dev/null | sed 's/^/    build-tools linux-arm64 refs: /'
-grep -n "prefix prebuilt ikut host" build/soong/rust/toolchain_library.go 2>/dev/null | head -3
+grep -n "arm64-host: toolchain rust host glibc untuk aarch64" build/soong/rust/config/arm_linux_host.go 2>/dev/null | head -2
+grep -n "linuxGlibcArm64ToolchainFactory" build/soong/rust/config/arm_linux_host.go 2>/dev/null | head -2
+grep -n "arm64-host: prebuilt std Rust untuk host aarch64" prebuilts/rust/soong/rustprebuilts.go 2>/dev/null | head -2
 grep -q 'filepath.Join("linux-x86", GetRustPrebuiltVersion' build/soong/rust/toolchain_library.go 2>/dev/null \
-  && echo "    !! MASIH ada hardcode linux-x86 di rust toolchain_library.go" \
-  || echo "    OK  : hardcode linux-x86 rust sudah hilang"
+  && echo "    OK  : hardcode linux-x86 dipertahankan (prefix crate arch-independent; PATCH 0003 sengaja di-skip)" \
+  || echo "    CATATAN: hardcode linux-x86 rust tidak ada (PATCH 0003 terpasang?)"
 echo "--- tambahan ---"
 grep -c "linux_musl_arm64" prebuilts/jdk/jdk21/Android.bp 2>/dev/null | sed 's/^/    jdk21 linux_musl_arm64 refs: /'
 grep -n "^[[:space:]]*int c;" system/sepolicy/tools/checkfc.c 2>/dev/null | head -1

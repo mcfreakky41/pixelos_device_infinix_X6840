@@ -64,5 +64,25 @@ PRODUCT_COPY_FILES += \
 # --- Non-AB OTA / A/B OTA ---
 AB_OTA_UPDATER := true
 
+# --- APK stok /vendor (tidak boleh via PRODUCT_COPY_FILES) ---
+# 15 APK di vendor/app + vendor/overlay dipasang oleh modul Soong
+# prebuilt_any di vendor/infinix/X6840/Android.bp (lihat alasan di file itu).
+PRODUCT_PACKAGES += \
+    x6840_vendor_NetworkStackGoogleGoResOverlay \
+    x6840_vendor_NetworkStackGoogleResOverlay \
+    x6840_vendor_NetworkStackResOverlay \
+    x6840_vendor_TetheringGoogleResOverlay \
+    x6840_vendor_TetheringResOverlay \
+    x6840_vendor_CellbroadcastUIResOverlay \
+    x6840_vendor_ConnectivityResOverlay \
+    x6840_vendor_FrameworkResOverlay \
+    x6840_vendor_FrameworkResOverlayExt \
+    x6840_vendor_MtkSettingsResOverlay \
+    x6840_vendor_MtkTelephonyServiceResOverlay \
+    x6840_vendor_SettingsProviderResOverlay \
+    x6840_vendor_SystemUIResOverlay \
+    x6840_vendor_WifiResMainlineOverlay \
+    x6840_vendor_WifiResOverlay
+
 # --- Inherit vendor blobs ---
 $(call inherit-product, vendor/infinix/X6840/X6840-vendor.mk)

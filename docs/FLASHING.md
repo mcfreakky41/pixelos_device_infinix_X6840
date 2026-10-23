@@ -145,12 +145,26 @@ kompatibel.
 
 `super.img` stok sudah dicadangkan lokal, tetapi formatnya tidak bisa di-unpack
 (header `gDla`), sehingga **tidak bisa dipakai sebagai jalur rollback** dengan
-tool `lpunpack`. Ambil partisi sistem mentah sebagai cadangan:
+tool `lpunpack`. Ambil partisi sistem mentah sebagai cadangan.
+
+`system_a` adalah **logical partition** (dynamic partition di dalam `super`),
+sehingga TIDAK ada di `/dev/block/by-name/` — yang ada di sana hanya `super`.
+Gunakan device mapper:
 
 ```bash
-adb shell su -c "dd if=/dev/block/by-name/system_a of=/data/local/tmp/system_a.img"
+# cek dulu device mapper mana yang aktif (system_a bisa bernama "system")
+adb shell su -c "ls -l /dev/block/mapper/"
+adb shell su -c "dd if=/dev/block/mapper/system of=/data/local/tmp/system_a.img"
+adb shell su -c "ls -l /data/local/tmp/system_a.img"   # pastikan ukurannya wajar
 adb pull /data/local/tmp/system_a.img ./backup-system_a.img
 adb shell su -c "rm /data/local/tmp/system_a.img"
+```
+
+Jika `/dev/block/mapper/system` tidak ada, alternatifnya cadangkan seluruh
+`super` (ukurannya besar, tapi pasti ada):
+
+```bash
+adb shell su -c "dd if=/dev/block/by-name/super of=/data/local/tmp/super.img"
 ```
 
 Alternatif yang lebih murah: cek apakah slot `_b` masih berisi sistem stok —
