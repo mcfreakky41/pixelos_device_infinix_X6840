@@ -191,3 +191,11 @@ Berdasarkan blog Actinis (peta jalan lengkap setelah patch host), dinding beriku
   (`vendor_boot` MTK tidak bisa direproduksi `mkbootimg` AOSP; blob vendor kehilangan
   konteks SELinux). **Jangan flash `super.img`** — isinya `vendor.img` hasil rebuild
   yang tidak valid. Detail + rollback: [`docs/FLASHING.md`](FLASHING.md).
+
+## Update terkini (2026-10-23)
+| Item | Status |
+|---|---|
+| Vendor APK di Soong | Pindah ke `prebuilt_any` (endor/infinix/X6840/Android.bp) dengan `sub_dir` biar dipasang persis ke endor/app/ & endor/overlay/ (hindari PRODUCT_COPY_FILES yang ditolak uild/make). |
+| BoardConfig mkbootimg | Tambah `--kernel_offset` dan `--ramdisk_offset` ke BOARD_MKBOOTIMG_ARGS. |
+| CI Rust arm64 | Fix symlink librustc_driver ke prebuilts/rust/.../lib64/ tanpa bergantung cd (langsung link per-file + validasi). |
+| Build terkini | run #26 (4ff4b26) - in_progress, setelah fix step Rust. |
