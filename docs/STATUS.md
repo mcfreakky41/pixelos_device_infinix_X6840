@@ -1,4 +1,4 @@
-# STATUS PROJECT — PixelOS X6840
+﻿# STATUS PROJECT — PixelOS X6840
 
 Terakhir update: 2026-10-22 (run #20 gagal karena BOM UTF-8 di `X6840-vendor.mk` — sudah diperbaiki; run #21 dispatched)
 
