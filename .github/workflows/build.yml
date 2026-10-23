@@ -304,7 +304,7 @@ jobs:
           # MASALAH: manifest PixelOS tak punya Clang host arm64
           #   (prebuilts/clang/host/linux-arm64 kosong di branch main).
           #   Branch 'mirror-goog-main-prebuilts' PUNYA arm64 Clang
-          #   (clang-r584948b / r596125 / r614150) â€” terverifikasi.
+          #   (clang-r584948b / r596125 / r614150) ââ- terverifikasi.
           #
           # Versi yang DIMINTA tree (dikonfirmasi dari soong global.go):
           #   ClangDefaultVersion      = "clang-r547379"
