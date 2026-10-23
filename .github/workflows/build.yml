@@ -527,7 +527,25 @@ jobs:
           # Error: expected "}", found Ident at line ~100
           if [ -f prebuilts/build-tools/Android.bp ]; then
             # Fix missing closing brace before flex module
-            awk '/prebuilt_build_tool \{/{p=1} p{lines[++n]=} /export_to_make_var: "LEX"/{if(!found){for(i=1;i<=n;i++) if(lines[i] ~ /^    }$/) found=1; if(!found) print "    }"} {for(i=1;i<=n;i++) print lines[i]; n=0; p=0} 1' prebuilts/build-tools/Android.bp > /tmp/Android.bp.fixed && mv /tmp/Android.bp.fixed prebuilts/build-tools/Android.bp
+                        # Use sed to insert missing } before flex module
+            sed -i '/^prebuilt_build_tool {/,/^    }$/ { /name: "flex"/i    }
+}' prebuilts/build-tools/Android.bp 2>/dev/null || true
+            # Fallback python fix if sed did not work
+            python3 -c "
+import sys
+with open('prebuilts/build-tools/Android.bp') as f: t=f.read()
+if 'name: "flex"' in t and '    }
+    prebuilt_build_tool {
+        name: "flex"' not in t:
+    t=t.replace('    }
+    prebuilt_build_tool {
+        name: "flex"', '    }
+    }
+    prebuilt_build_tool {
+        name: "flex"')
+    open('prebuilts/build-tools/Android.bp','w').write(t)
+    print('Fixed')
+"
           fi
           echo ">>> Fixing broken hardware/qcom symlinks..."
           for dir in hardware/qcom/sdm845 hardware/qcom/sm8150 hardware/qcom/sm7250; do
