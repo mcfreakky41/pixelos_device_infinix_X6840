@@ -5,14 +5,28 @@ cd ~/android/pixelos
 
 echo ">>> Fixing prebuilts/build-tools/Android.bp syntax error..."
 if [ -f prebuilts/build-tools/Android.bp ]; then
-    python3 -c "
-import sys
-with open('prebuilts/build-tools/Android.bp') as f: t=f.read()
-if 'name: \"flex\"' in t and '    }\n    prebuilt_build_tool {\n        name: \"flex\"' not in t:
-    t=t.replace('    }\n    prebuilt_build_tool {\n        name: \"flex\"', '    }\n    }\n    prebuilt_build_tool {\n        name: \"flex\"')
-    open('prebuilts/build-tools/Android.bp','w').write(t)
-    print('Fixed')
-"
+    python3 << 'PYEOF'
+import re
+with open('prebuilts/build-tools/Android.bp', 'r') as f:
+    t = f.read()
+# Find all occurrences of 'name: "flex"'
+matches = list(re.finditer(r'name: "flex"', t))
+if matches:
+    fixed = False
+    lines = t.split('\n')
+    # Process from bottom to top to maintain line numbers
+    for m in reversed(matches):
+        line_num = t[:m.start()].count('\n')
+        if line_num > 0 and not lines[line_num - 1].rstrip().endswith('}'):
+            lines[line_num] = '    }' + lines[line_num]
+            fixed = True
+    if fixed:
+        with open('prebuilts/build-tools/Android.bp', 'w') as f:
+            f.write('\n'.join(lines))
+        print('Fixed: added } before flex module')
+    else:
+        print('No fix needed for flex module')
+PYEOF
 fi
 
 echo ">>> Fixing broken hardware/qcom symlinks..."
