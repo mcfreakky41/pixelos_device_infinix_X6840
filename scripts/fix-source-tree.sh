@@ -9,20 +9,15 @@ find hardware -maxdepth 3 -name Android.bp -xtype l -print 2>/dev/null | while r
     echo "// Stub to satisfy soong (original symlink was broken)" > "$bp"
 done
 
-echo ">>> Fixing livedisplay HIDL/AIDL version mismatch..."
-# hardware/lineage/livedisplay (HIDL) expects vendor.lineage.livedisplay@2.0
-# but hardware/lineage/interfaces (AIDL) provides vendor.lineage.livedisplay
-# Fix: change dependency to AIDL version that exists
-for f in hardware/lineage/livedisplay/sysfs/Android.bp hardware/lineage/livedisplay/sdm/Android.bp; do
-    if [ -f "$f" ]; then
-        python3 - "$f" << 'PYEOF'
-import sys
-p = sys.argv[1]
-s = open(p, encoding="utf-8").read()
-s = s.replace('vendor.lineage.livedisplay@2.0', 'vendor.lineage.livedisplay')
-open(p, "w", encoding="utf-8").write(s)
-print("  Fixed:", p)
-PYEOF
+echo ">>> Fixing livedisplay duplicate module definitions..."
+# Both hardware/lineage/livedisplay and hardware/lineage/interfaces define
+# the same module names (vendor.lineage.livedisplay-*), causing duplicates.
+# Since device tree doesn't use livedisplay, disable the service implementations
+# by renaming their Android.bp to prevent duplicate definitions.
+for dir in hardware/lineage/livedisplay/sysfs hardware/lineage/livedisplay/sdm; do
+    if [ -f "$dir/Android.bp" ]; then
+        mv "$dir/Android.bp" "$dir/Android.bp.disabled"
+        echo "  Disabled: $dir/Android.bp"
     fi
 done
 
