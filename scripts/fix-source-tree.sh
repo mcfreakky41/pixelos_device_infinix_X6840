@@ -18,7 +18,7 @@ if matches:
     for m in reversed(matches):
         line_num = t[:m.start()].count('\n')
         if line_num > 0 and not lines[line_num - 1].rstrip().endswith('}'):
-            lines[line_num] = '    }' + lines[line_num]
+            lines.insert(line_num, '    }')
             fixed = True
     if fixed:
         with open('prebuilts/build-tools/Android.bp', 'w') as f:
