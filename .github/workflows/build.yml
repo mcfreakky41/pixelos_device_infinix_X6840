@@ -523,7 +523,7 @@ jobs:
       - name: Fix source tree (patch broken PixelOS sixteen files)
         run: |
           cd ~/android/pixelos
-          bash "/device-tree/scripts/fix-source-tree.sh"
+          bash "$GITHUB_WORKSPACE/device-tree/scripts/fix-source-tree.sh"
 
       - name: Build
         run: |
