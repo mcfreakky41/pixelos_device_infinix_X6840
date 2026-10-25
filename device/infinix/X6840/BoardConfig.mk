@@ -250,10 +250,6 @@ BOARD_BOOTCONFIG := \
 # --- SELinux ---
 BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor
 
-# --- Screen resolution (HD+ 720x1640) ---
-TARGET_SCREEN_WIDTH := 720
-TARGET_SCREEN_HEIGHT := 1640
-
 # --- init_boot: ROM kita taruh init di init_boot ---
 BOARD_USES_INIT_BOOT := true
 TARGET_INIT_BOOT_USE_RECOVERY := false

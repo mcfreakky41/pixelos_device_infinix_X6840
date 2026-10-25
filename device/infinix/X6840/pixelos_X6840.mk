@@ -8,6 +8,11 @@
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
 
+# Screen resolution (HD+ 720x1640) — HARUS sebelum inherit vendor/aosp
+# karena bootanimation.mk dievaluasi saat common_full_phone.mk di-inherit
+TARGET_SCREEN_WIDTH := 720
+TARGET_SCREEN_HEIGHT := 1640
+
 # Inherit some common PixelOS stuff.
 # NB: pada manifest PixelOS (branch sixteen) vendor config ada di vendor/aosp,
 #     bukan vendor/pixelos.
