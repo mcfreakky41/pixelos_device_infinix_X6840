@@ -36,4 +36,12 @@ print("  Fixed:", p)
 PYEOF
 fi
 
+echo ">>> Fixing SimpleSettingsConfig undefined dependency..."
+# SimpleSettingsConfig depends on org.lineageos.platform.internal which doesn't exist
+# Disable the module since device tree doesn't use it
+if [ -f packages/apps/SimpleSettingsConfig/Android.bp ]; then
+    mv packages/apps/SimpleSettingsConfig/Android.bp packages/apps/SimpleSettingsConfig/Android.bp.disabled
+    echo "  Disabled: packages/apps/SimpleSettingsConfig/Android.bp"
+fi
+
 echo ">>> Source tree fixes applied."
