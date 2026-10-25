@@ -323,7 +323,7 @@ for n in names:
     repl = ('\n        linux_musl_arm64: {\n'
             '            src: "linux-arm64/bin/' + n + '",\n'
             '            deps: ["linux-arm64/lib64/libc_musl.so"],\n'
-            '        }' + r'\1')
+            '        },' + r'\1')
     s2, k = pat.subn(repl, s, count=1)
     if k:
         s = s2; count += 1

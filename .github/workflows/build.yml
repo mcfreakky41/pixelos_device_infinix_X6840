@@ -566,6 +566,7 @@ jobs:
           HB=$!
           echo "=== MULAI mka bacon: $(date -u) ==="
           # mka adalah shell function (dari envsetup.sh), stdbuf tidak bisa jalanin function.
+          set -o pipefail
           if ! mka bacon -j$JOBS 2>&1 | tee build.log; then
             echo "=== BUILD GAGAL ==="
             tail -300 build.log
