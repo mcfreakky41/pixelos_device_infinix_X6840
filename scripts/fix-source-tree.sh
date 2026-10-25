@@ -9,38 +9,34 @@ if [ -f prebuilts/build-tools/Android.bp ]; then
 import re
 with open('prebuilts/build-tools/Android.bp', 'r') as f:
     t = f.read()
-# Strategy: find lines that start a new module definition (identifier followed by {)
-# and check if the previous non-empty line ends with }. If not, insert } before it.
+# Strategy: find lines that are closing braces } (without comma) followed by
+# an identifier: pattern (next entry in a map). Add comma after } if missing.
 lines = t.split('\n')
 fixed = False
-# Find module starts: lines matching pattern like "something {" or "something{"
-module_starts = []
-for i, line in enumerate(lines):
-    stripped = line.strip()
-    if stripped and '{' in stripped and not stripped.startswith('//') and not stripped.startswith('#'):
-        # Check if this looks like a module definition start
-        # Module definitions in Blueprint are like: module_type { or module_type{
-        if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*\s*\{', stripped):
-            module_starts.append(i)
 
-# Process from bottom to top
-for idx in reversed(module_starts):
-    # Find the previous non-empty line
-    prev_idx = idx - 1
-    while prev_idx >= 0 and lines[prev_idx].strip() == '':
-        prev_idx -= 1
-    if prev_idx >= 0 and not lines[prev_idx].rstrip().endswith('}'):
-        # Insert } before this module start
-        indent = lines[idx][:len(lines[idx]) - len(lines[idx].lstrip())]
-        lines.insert(idx, indent + '}')
-        fixed = True
+# Pattern: a line ending with } (possibly with trailing whitespace) followed by
+# a non-empty line starting with an identifier followed by :
+for i in range(len(lines) - 1):
+    line = lines[i].rstrip()
+    if line.endswith('}') and not line.endswith(',}'):
+        # Find next non-empty line
+        j = i + 1
+        while j < len(lines) and lines[j].strip() == '':
+            j += 1
+        if j < len(lines):
+            next_line = lines[j].strip()
+            # Check if next line starts with identifier followed by :
+            if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*\s*:', next_line):
+                # Add comma after }
+                lines[i] = line + ','
+                fixed = True
 
 if fixed:
     with open('prebuilts/build-tools/Android.bp', 'w') as f:
         f.write('\n'.join(lines))
-    print('Fixed: added missing } before module definitions')
+    print('Fixed: added missing commas after } in map entries')
 else:
-    print('No fix needed for module definitions')
+    print('No fix needed for map entries')
 PYEOF
 fi
 

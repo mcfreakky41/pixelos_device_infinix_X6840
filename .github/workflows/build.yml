@@ -520,20 +520,6 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Debug Android.bp file
-        run: |
-          cd ~/android/pixelos
-          if [ -f prebuilts/build-tools/Android.bp ]; then
-            echo "=== File exists, showing lines 50-80 ==="
-            sed -n '50,80p' prebuilts/build-tools/Android.bp
-            echo "=== File exists, showing lines 90-110 ==="
-            sed -n '90,110p' prebuilts/build-tools/Android.bp
-            echo "=== Total lines ==="
-            wc -l prebuilts/build-tools/Android.bp
-          else
-            echo "File does not exist"
-          fi
-
       - name: Fix source tree (patch broken PixelOS sixteen files)
         run: |
           cd ~/android/pixelos
