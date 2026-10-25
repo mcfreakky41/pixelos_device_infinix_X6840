@@ -18,7 +18,9 @@ fixed = False
 # a non-empty line starting with an identifier followed by :
 for i in range(len(lines) - 1):
     line = lines[i].rstrip()
-    if line.endswith('}') and not line.endswith(',}'):
+    # Only fix indented } (inside maps), not top-level module closing braces
+    indent = len(lines[i]) - len(lines[i].lstrip())
+    if indent > 0 and line.endswith('}') and not line.endswith(',}'):
         # Find next non-empty line
         j = i + 1
         while j < len(lines) and lines[j].strip() == '':
