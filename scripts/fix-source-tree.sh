@@ -13,7 +13,7 @@ echo ">>> Fixing livedisplay undefined module references..."
 # livedisplay service repos (HIDL) reference vendor.lineage.livedisplay@2.0
 # but interfaces repo (AIDL) provides vendor.lineage.livedisplay (no @2.0)
 # Since device tree doesn't use livedisplay, disable service implementations.
-for dir in hardware/lineage/livedisplay/sysfs hardware/lineage/livedisplay/sdm; do
+for dir in hardware/lineage/livedisplay/sysfs hardware/lineage/livedisplay/sdm hardware/lineage/livedisplay/legacymm; do
     if [ -f "$dir/Android.bp" ]; then
         mv "$dir/Android.bp" "$dir/Android.bp.disabled"
         echo "  Disabled: $dir/Android.bp"
@@ -50,6 +50,15 @@ echo ">>> Disabling Qualcomm-only VibratorCL (tidak dipakai di MediaTek)..."
 # VibratorCL depends on libspf-headers, libarosal_headers, libpalclient
 # which only exist in Qualcomm CAF namespaces, not on MediaTek MT6768
 bp=vendor/qcom/opensource/vibrator/aidl/VibratorCL/Android.bp
+if [ -f "$bp" ]; then
+    mv "$bp" "$bp.disabled"
+    echo "  Disabled: $bp"
+fi
+
+
+
+echo ">>> Disabling Qualcomm Vibrator aidl (depends on VibratorCL)..."
+bp=vendor/qcom/opensource/vibrator/aidl/Android.bp
 if [ -f "$bp" ]; then
     mv "$bp" "$bp.disabled"
     echo "  Disabled: $bp"
