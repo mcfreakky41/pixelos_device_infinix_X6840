@@ -40,4 +40,4 @@ PRODUCT_GMS_CLIENTID_BASE := android-infinix
 # daftar perangkat Infinix X6840 tetap mengenali perangkat ini.
 # Catatan: ROM ini ditandatangani dengan test/dev keys, jadi Play Integrity
 # "DEVICE integrity" tetap tidak akan lolos (menuntut release key OEM).
-BUILD_FINGERPRINT := transsion/tssi/tssi:15/AP3A.240905.015.A2/101500043:user/release-keys
+BUILD_FINGERPRINT := Infinix/X6840-OP/Infinix-X6840:16/BP2A.250605.031.A3/301400019:user/release-keys
