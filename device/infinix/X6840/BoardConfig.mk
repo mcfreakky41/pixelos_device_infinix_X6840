@@ -13,7 +13,6 @@ DEVICE_PATH := device/infinix/X6840
 
 # --- Device identity ---
 # Dipakai oleh guard di Android.mk dan oleh build system.
-TARGET_DEVICE := X6840
 TARGET_OTA_ASSERT_DEVICE := X6840,Infinix-X6840
 
 # --- Platform / arch ---
@@ -41,10 +40,6 @@ TARGET_NO_BOOTLOADER := true
 # yang menjadi .KATI_READONLY sebelum BoardConfig.mk dibaca
 # (build/make/core/envsetup.mk:351 product_config.mk -> :368 board_config.mk).
 # Nilainya sudah diset di device.mk (file product).
-TARGET_BOARD_API_LEVEL := 36
-BOARD_SYSTEMSDK_VERSIONS := 36
-BOARD_SYSTEMSDK_VERSIONS += 35
-BOARD_SYSTEMSDK_VERSIONS += 34
 
 # --- Kernel (prebuilt from stock dump; no public kernel source) ---
 # TARGET_PREBUILT_KERNEL consumed oleh vendor/aosp/build/tasks/kernel.mk
@@ -128,7 +123,6 @@ BOARD_MAIN_PARTITION_LIST := \
 # BOARD_ODM_DLKMIMAGE_PARTITION_SIZE := 21872640
 # BOARD_SYSTEM_DLKMIMAGE_PARTITION_SIZE := 7278592
 
-BOARD_SUPER_PARTITION_BLOCK_DEVICE_SIZE_OVERRIDE := true
 
 # --- Filesystems (stock device pakai EROFS; ROM build pakai ext4) ---
 BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE := ext4
@@ -194,7 +188,6 @@ BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := f2fs
 BOARD_USES_METADATA_PARTITION := true
 
 # --- A/B ---
-AB_OTA_UPDATER := true
 AB_OTA_PARTITIONS += \
     boot \
     dtbo \
@@ -229,15 +222,10 @@ BOARD_AVB_VBMETA_VENDOR_ALGORITHM := SHA256_RSA2048
 BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
 BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX_LOCATION := 2
 
-# --- VNDK ---
-BOARD_VNDK_VERSION := current
 
 # --- Display / GPU (Mali "meow" driver on this SoC) ---
-TARGET_USES_HWC2 := true
-NUM_FRAMEBUFFER_SURFACE_BUFFERS := 3
 
 # --- Media / Camera ---
-TARGET_USES_ION := true
 
 # --- Health / power ---
 BOARD_HAS_NO_SELECT_BUTTON := true
