@@ -520,6 +520,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Debug Common_CFlags
+        run: |
+          cd ~/android/pixelos
+          echo "=== Searching for Common_CFlags ==="
+          grep -rn "Common_CFlags" --include="*.bp" . 2>/dev/null | head -20
+          echo "=== Searching for Common_CFlags in patches ==="
+          grep -rn "Common_CFlags" scripts/ 2>/dev/null | head -20
+          echo "=== Done ==="
+
       - name: Fix source tree (patch broken PixelOS sixteen files)
         run: |
           cd ~/android/pixelos
