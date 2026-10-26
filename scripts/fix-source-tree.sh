@@ -44,4 +44,15 @@ if [ -f packages/apps/SimpleSettingsConfig/Android.bp ]; then
     echo "  Disabled: packages/apps/SimpleSettingsConfig/Android.bp"
 fi
 
+
+
+echo ">>> Disabling Qualcomm-only VibratorCL (tidak dipakai di MediaTek)..."
+# VibratorCL depends on libspf-headers, libarosal_headers, libpalclient
+# which only exist in Qualcomm CAF namespaces, not on MediaTek MT6768
+bp=vendor/qcom/opensource/vibrator/aidl/VibratorCL/Android.bp
+if [ -f "$bp" ]; then
+    mv "$bp" "$bp.disabled"
+    echo "  Disabled: $bp"
+fi
+
 echo ">>> Source tree fixes applied."
