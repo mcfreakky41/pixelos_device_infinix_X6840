@@ -9,7 +9,7 @@ DEVICE_PATH := device/infinix/X6840
 # --- API ---
 # Target ROM = Android 16 (PixelOS branch sixteen), jadi shipping level 36.
 # (Vendor stok API 35, tapi GSI A16 terbukti boot di device ini.)
-PRODUCT_SHIPPING_API_LEVEL := 36
+PRODUCT_SHIPPING_API_LEVEL := 35
 
 # --- A/B + dynamic partitions + emulated storage ---
 # Catatan: 'launcher.mk' TIDAK ADA di PixelOS sixteen (error run #19:
