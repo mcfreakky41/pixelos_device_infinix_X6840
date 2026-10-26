@@ -18,4 +18,3 @@ allow vendor_init vendor_mtk_prop:file { read open getattr map };
 type transsion_service, app_api_service, service_manager_type;
 allow platform_app transsion_service:service_manager find;
 allow system_app transsion_service:service_manager find;
-allow untrusted_app_all transsion_service:service_manager find;
