@@ -22,7 +22,7 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota/launch_with_ven
 $(call inherit-product, $(SRC_TARGET_DIR)/product/emulated_storage.mk)
 
 # --- SoC / hardware properties ---
-PRODUCT_PROPERTY_OVERRIDES += \
+PRODUCT_SYSTEM_PROPERTIES += \
     ro.board.platform=mt6768 \
     ro.hardware=mt6768 \
     ro.hardware.egl=meow \
@@ -31,7 +31,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
     ro.hardware.gatekeeper=trustonic
 
 # --- Dalvik / ART tuning (device 4GB RAM) ---
-PRODUCT_PROPERTY_OVERRIDES += \
+PRODUCT_SYSTEM_PROPERTIES += \
     dalvik.vm.heapstartsize=8m \
     dalvik.vm.heapgrowthlimit=192m \
     dalvik.vm.heapsize=512m \
@@ -40,17 +40,17 @@ PRODUCT_PROPERTY_OVERRIDES += \
     dalvik.vm.heapmaxfree=8m
 
 # --- Display (HD+ 720x1640 -> density 320) ---
-PRODUCT_PROPERTY_OVERRIDES += \
+PRODUCT_SYSTEM_PROPERTIES += \
     ro.sf.lcd_density=320
 
 # --- Telephony (DSDS + VoLTE, MTK IMS) ---
-PRODUCT_PROPERTY_OVERRIDES += \
+PRODUCT_SYSTEM_PROPERTIES += \
     persist.vendor.radio.msimmode=dsds \
     ro.telephony.default_network=9,9 \
     persist.dbg.ims_volte_enable=1
 
 # --- Media / codec ---
-PRODUCT_PROPERTY_OVERRIDES += \
+PRODUCT_SYSTEM_PROPERTIES += \
     debug.stagefright.omx_default_rank=0
 
 # --- Dynamic partitions: only A/B, logical in super ---
@@ -61,7 +61,7 @@ PRODUCT_BUILD_SUPER_PARTITION := true
 PRODUCT_COPY_FILES += \
     $(DEVICE_PATH)/rootdir/etc/fstab.mt6768:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.mt6768
 
-# --- Non-AB OTA / A/B OTA ---
+# --- A/B OTA (Virtual A/B) ---
 AB_OTA_UPDATER := true
 
 # --- APK stok /vendor (tidak boleh via PRODUCT_COPY_FILES) ---
