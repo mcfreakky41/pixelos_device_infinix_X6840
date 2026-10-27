@@ -22,6 +22,13 @@ find hardware -maxdepth 4 -name Android.bp -xtype l -print 2>/dev/null | while r
     echo "// Stub to satisfy soong (original symlink was broken)" > "$bp"
 done
 
+echo ">>> Disabling ALL Qualcomm HAL modules (MediaTek tidak butuh HAL Qualcomm)..."
+# Semua Android.bp di hardware/qcom/ dan hardware/qcom-caf/ untuk Qualcomm-only HAL.
+# Perangkat MediaTek MT6768 tidak butuh modul Qualcomm.
+find hardware/qcom -name Android.bp -type f 2>/dev/null | while read -r bp; do
+    disable_bp "$bp" "Qualcomm HAL, tidak dipakai di MediaTek"
+done
+
 echo ">>> Fixing livedisplay undefined module references..."
 # Log Soong: "depends on undefined module" (BUKAN duplikat). hardware/lineage/
 # livedisplay (HIDL) butuh vendor.lineage.livedisplay@2.0, sedangkan repo
@@ -51,28 +58,6 @@ fi
 echo ">>> Fixing SimpleSettingsConfig undefined dependency..."
 # Bergantung pada org.lineageos.platform.internal (Lineage SDK) yang tidak ada di tree ini.
 disable_bp packages/apps/SimpleSettingsConfig/Android.bp "butuh org.lineageos.platform.internal"
-
-echo ">>> Disabling Qualcomm-only VibratorCL..."
-# vendor.qti.hardware.vibratorCL.impl butuh libspf-headers, libarosal_headers, libpalclient
-# (hanya ada di namespace qcom-caf; modul ini ada di namespace root). Tidak relevan di MediaTek.
-disable_bp vendor/qcom/opensource/vibrator/aidl/VibratorCL/Android.bp "Qualcomm-only, dependensi tidak ada"
-
-echo ">>> Disabling Qualcomm Vibrator aidl (depends on VibratorCL)..."
-# parent aidl/Android.bp references vendor.qti.hardware.vibratorCL.impl
-disable_bp vendor/qcom/opensource/vibrator/aidl/Android.bp "depends on VibratorCL (disabled)"
-
-echo ">>> Disabling Qualcomm vibrator effect + VibratorOL (define/use Common_CFlags)..."
-# effect/Android.bp defines Common_CFlags; VibratorOL/Android.bp uses it.
-# Both are Qualcomm-only, not needed for MediaTek MT6768.
-disable_bp vendor/qcom/opensource/vibrator/effect/Android.bp "Qualcomm-only, defines Common_CFlags"
-disable_bp vendor/qcom/opensource/vibrator/aidl/VibratorOL/Android.bp "Qualcomm-only, uses Common_CFlags"
-
-echo ">>> Disabling ALL Qualcomm HAL modules (MediaTek tidak butuh HAL Qualcomm)..."
-# Semua Android.bp di hardware/qcom/ dan hardware/qcom-caf/ untuk Qualcomm-only HAL.
-# Perangkat MediaTek MT6768 tidak butuh modul Qualcomm.
-find hardware/qcom -name Android.bp -type f 2>/dev/null | while read -r bp; do
-    disable_bp "$bp" "Qualcomm HAL, tidak dipakai di MediaTek"
-done
 
 echo ">>> Cek referensi ke modul yang dinonaktifkan (PRODUCT_PACKAGES dll.)..."
 # Kalau makefile produk masih memasukkan modul yang sudah dinonaktifkan, Kati/Ninja
