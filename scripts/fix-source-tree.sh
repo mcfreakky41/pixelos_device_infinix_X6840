@@ -31,18 +31,18 @@ disable_bp hardware/lineage/livedisplay/sysfs/Android.bp "HAL HIDL livedisplay t
 disable_bp hardware/lineage/livedisplay/sdm/Android.bp   "HAL HIDL livedisplay tidak dipakai"
 disable_bp hardware/lineage/livedisplay/legacymm/Android.bp "HAL HIDL livedisplay tidak dipakai"
 
-# frameworks/base menyebut V2.0-java dan V2.1-java (HIDL); yang ada V1/V2-java (AIDL).
-# V2.0-java -> V2-java, entri V2.1-java dibuang supaya tidak ada duplikat.
-# CATATAN: hanya aman bila kode Java framework tidak memakai kelas HIDL
-# (vendor.lineage.livedisplay.V2_*); kalau memakai, error pindah ke tahap javac.
+# frameworks/base menyebut vendor.lineage.livedisplay-V2.0-java dan
+# vendor.lineage.livedisplay-V2.1-java (HIDL); yang ada di tree hanyalah
+# vendor.lineage.livedisplay-V1-java dan -V2-java (AIDL).
+# Karena perangkat ini tidak pakai livedisplay, buang semua referensi
+# livedisplay-V2-* dari frameworks/base/Android.bp.
 if [ -f frameworks/base/Android.bp ]; then
     python3 - frameworks/base/Android.bp << 'PYEOF'
 import sys, re
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
-s = s.replace('vendor.lineage.livedisplay-V2.0-java', 'vendor.lineage.livedisplay-V2-java')
-# Buang entri V2.1-java apa pun bentuk daftarnya (multi-baris / satu baris / tanpa koma akhir)
-s = re.sub(r'[ \t]*"vendor\.lineage\.livedisplay-V2\.1-java",?[ \t]*\n?', '', s)
+# Hapus semua entri livedisplay-V2-* (V2.0-java, V2.1-java, V2-java)
+s = re.sub(r'[ \t]*"vendor\.lineage\.livedisplay-V2[^\"]*",?[ \t]*\n?', '', s)
 open(p, "w", encoding="utf-8").write(s)
 print("  Fixed:", p)
 PYEOF
