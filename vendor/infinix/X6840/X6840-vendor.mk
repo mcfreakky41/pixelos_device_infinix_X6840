@@ -1933,6 +1933,24 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/res/sound/ringtone.wav:$(TARGET_COPY_OUT_VENDOR)/res/sound/ringtone.wav \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/res/sound/testpattern1.wav:$(TARGET_COPY_OUT_VENDOR)/res/sound/testpattern1.wav
 
+
+# ---- vendor APK (15 file) ----
+PRODUCT_COPY_FILES += \
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/NetworkStackGoogleGoResOverlay/NetworkStackGoogleGoResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/app/NetworkStackGoogleGoResOverlay/NetworkStackGoogleGoResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/NetworkStackGoogleResOverlay/NetworkStackGoogleResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/app/NetworkStackGoogleResOverlay/NetworkStackGoogleResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/NetworkStackResOverlay/NetworkStackResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/app/NetworkStackResOverlay/NetworkStackResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/TetheringGoogleResOverlay/TetheringGoogleResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/app/TetheringGoogleResOverlay/TetheringGoogleResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/TetheringResOverlay/TetheringResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/app/TetheringResOverlay/TetheringResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/CellbroadcastUIResOverlay/CellbroadcastUIResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/overlay/CellbroadcastUIResOverlay/CellbroadcastUIResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/ConnectivityResOverlay/ConnectivityResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/overlay/ConnectivityResOverlay/ConnectivityResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/FrameworkResOverlay/FrameworkResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/overlay/FrameworkResOverlay/FrameworkResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/FrameworkResOverlayExt/FrameworkResOverlayExt.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/overlay/FrameworkResOverlayExt/FrameworkResOverlayExt.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/MtkSettingsResOverlay/MtkSettingsResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/overlay/MtkSettingsResOverlay/MtkSettingsResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/MtkTelephonyServiceResOverlay/MtkTelephonyServiceResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/overlay/MtkTelephonyServiceResOverlay/MtkTelephonyServiceResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/SettingsProviderResOverlay/SettingsProviderResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/overlay/SettingsProviderResOverlay/SettingsProviderResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/SystemUIResOverlay/SystemUIResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/overlay/SystemUIResOverlay/SystemUIResOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/WifiResMainlineOverlay/WifiResMainlineOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/overlay/WifiResMainlineOverlay/WifiResMainlineOverlay.apk \\
+    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/WifiResOverlay/WifiResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/vendor/overlay/WifiResOverlay/WifiResOverlay.apk
 # ---- odm (645 file) ----
 PRODUCT_COPY_FILES += \
     $(LOCAL_VENDOR_PATH)/proprietary/odm/bin/fhpd:$(TARGET_COPY_OUT_ODM)/bin/fhpd \
