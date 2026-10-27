@@ -67,11 +67,11 @@ echo ">>> Disabling Qualcomm vibrator effect + VibratorOL (define/use Common_CFl
 disable_bp vendor/qcom/opensource/vibrator/effect/Android.bp "Qualcomm-only, defines Common_CFlags"
 disable_bp vendor/qcom/opensource/vibrator/aidl/VibratorOL/Android.bp "Qualcomm-only, uses Common_CFlags"
 
-echo ">>> Disabling all Qualcomm CAF modules (MediaTek tidak butuh HAL Qualcomm)..."
-# Semua Android.bp di hardware/qcom-caf/ untuk Qualcomm-only HAL.
+echo ">>> Disabling ALL Qualcomm HAL modules (MediaTek tidak butuh HAL Qualcomm)..."
+# Semua Android.bp di hardware/qcom/ dan hardware/qcom-caf/ untuk Qualcomm-only HAL.
 # Perangkat MediaTek MT6768 tidak butuh modul Qualcomm.
-find hardware/qcom-caf -name Android.bp -type f 2>/dev/null | while read -r bp; do
-    disable_bp "$bp" "Qualcomm CAF, tidak dipakai di MediaTek"
+find hardware/qcom -name Android.bp -type f 2>/dev/null | while read -r bp; do
+    disable_bp "$bp" "Qualcomm HAL, tidak dipakai di MediaTek"
 done
 
 echo ">>> Cek referensi ke modul yang dinonaktifkan (PRODUCT_PACKAGES dll.)..."
