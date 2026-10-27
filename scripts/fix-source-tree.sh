@@ -67,10 +67,17 @@ echo ">>> Disabling Qualcomm vibrator effect + VibratorOL (define/use Common_CFl
 disable_bp vendor/qcom/opensource/vibrator/effect/Android.bp "Qualcomm-only, defines Common_CFlags"
 disable_bp vendor/qcom/opensource/vibrator/aidl/VibratorOL/Android.bp "Qualcomm-only, uses Common_CFlags"
 
+echo ">>> Disabling all Qualcomm CAF modules (MediaTek tidak butuh HAL Qualcomm)..."
+# Semua Android.bp di hardware/qcom-caf/ untuk Qualcomm-only HAL.
+# Perangkat MediaTek MT6768 tidak butuh modul Qualcomm.
+find hardware/qcom-caf -name Android.bp -type f 2>/dev/null | while read -r bp; do
+    disable_bp "$bp" "Qualcomm CAF, tidak dipakai di MediaTek"
+done
+
 echo ">>> Cek referensi ke modul yang dinonaktifkan (PRODUCT_PACKAGES dll.)..."
 # Kalau makefile produk masih memasukkan modul yang sudah dinonaktifkan, Kati/Ninja
 # akan gagal belakangan. Hanya melapor, tidak mengubah apa pun.
-for name in vendor.qti.hardware.vibratorCL SimpleSettingsConfig 'vendor.lineage.livedisplay@2.0-service'; do
+for name in vendor.qti.hardware.vibratorCL SimpleSettingsConfig 'vendor.lineage.livedisplay@2.0-service' vendor.qti.hardware.display.composer-service; do
     hits=$(grep -rIl --include='*.mk' --include='Android.mk' --include='Android.bp' --include='*.xml' \
               -e "$name" vendor device build packages hardware 2>/dev/null | head -5)
     if [ -n "$hits" ]; then
