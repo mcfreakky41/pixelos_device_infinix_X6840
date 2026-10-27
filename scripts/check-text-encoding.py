@@ -40,6 +40,7 @@ def iter_files(roots):
         if not os.path.isdir(root):
             continue
         for dirpath, dirnames, filenames in os.walk(root):
+            # Skip direktori yang namanya ada di SKIP_DIR_PARTS (mis. proprietary/)
             dirnames[:] = [d for d in dirnames if d not in SKIP_DIR_PARTS]
             for name in filenames:
                 if os.path.splitext(name)[1].lower() in CRITICAL_EXTS:
