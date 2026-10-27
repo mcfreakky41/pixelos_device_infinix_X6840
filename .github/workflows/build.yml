@@ -512,7 +512,7 @@ jobs:
       - name: Clone device + vendor tree
         run: |
           cd ~/android/pixelos
-          rm -rf device/infinix/X6840 vendor/infinix/X6840
+          rm -rf device/infinix/X6840
           mkdir -p device/infinix vendor/infinix
           cp -r "$GITHUB_WORKSPACE/device-tree/device/infinix/X6840" device/infinix/X6840
           cp -r "$GITHUB_WORKSPACE/device-tree/vendor/infinix/X6840" vendor/infinix/X6840
