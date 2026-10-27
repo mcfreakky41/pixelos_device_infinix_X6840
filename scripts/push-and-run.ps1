@@ -1,20 +1,26 @@
-# push-and-run.ps1 — commit + push device tree, lalu dispatch build run di GitHub Actions.
+# push-and-run.ps1 - commit + push device tree, lalu dispatch build run di GitHub Actions.
 #
-# Pakai:
-#   powershell -ExecutionPolicy Bypass -File E:\PixelOS-X6840\repo\scripts\push-and-run.ps1
+# Pakai (pesan commit WAJIB diisi, supaya tidak ada pesan lama yang ikut terpakai):
+#   powershell -ExecutionPolicy Bypass -File scripts\push-and-run.ps1 -Msg "fix(device): ..."
 #
+# Opsional: -Repo <folder repo> (default: folder induk dari scripts\), -Remote, -Branch.
 # Aman diulang: kalau tak ada perubahan, commit dilewati.
+param(
+  [Parameter(Mandatory = $true)][string]$Msg,
+  [string]$Repo   = (Split-Path -Parent $PSScriptRoot),
+  [string]$Remote = "mcfreakky41/pixelos_device_infinix_X6840",
+  [string]$Branch = "main"
+)
 
 $ErrorActionPreference = "Stop"
 
-$Repo   = "E:\PixelOS-X6840\repo"
-$Remote = "mcfreakky41/pixelos_device_infinix_X6840"
-$Branch = "main"
-$Msg    = "fix(device): virtual_ab_ota launcher.mk tidak ada di A16 -> launch_with_vendor_ramdisk.mk (fix run #19)"
-
 # --- git tersedia? ---
-$git = "C:\Users\Administrator\pixelos-smart20\tools\git\cmd\git.exe"
-if (-not (Test-Path $git)) { $git = "git" }
+$gitCmd = Get-Command git -ErrorAction SilentlyContinue
+if (-not $gitCmd) {
+  Write-Host "!! git tidak ditemukan di PATH. Pasang Git for Windows dulu." -ForegroundColor Red
+  exit 1
+}
+$git = $gitCmd.Source
 
 Set-Location $Repo
 
@@ -25,7 +31,9 @@ $dirty = (& $git status --porcelain)
 if ($dirty) {
   Write-Host "== add + commit ==" -ForegroundColor Cyan
   & $git add -A
+  if ($LASTEXITCODE -ne 0) { Write-Host "!! git add gagal (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
   & $git commit -m $Msg
+  if ($LASTEXITCODE -ne 0) { Write-Host "!! git commit gagal (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
 } else {
   Write-Host ">> tidak ada perubahan untuk di-commit" -ForegroundColor Yellow
 }

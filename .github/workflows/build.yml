@@ -395,7 +395,7 @@ jobs:
           D="prebuilts/rust/linux-arm64/$RV"
           LIBDIR="$D/lib/rustlib/$TRIPLE/lib"
 
-          if [ -x "$D/bin/rustc" ] && [ -d "$D/lib/rustlib/src/rust/library" ] && ls "$LIBDIR"/libstd-*.rlib >/dev/null 2>&1; then
+          if [ -x "$D/bin/rustc" ] && ls "$LIBDIR"/libstd-*.rlib >/dev/null 2>&1; then
             echo ">>> rust host arm64 sudah lengkap, lewati unduhan"
           else
             echo ">>> unduh dist resmi rust $RV ($TRIPLE)"
@@ -405,20 +405,45 @@ jobs:
               "https://static.rust-lang.org/dist/rust-${RV}-${TRIPLE}.tar.gz"
             tar xzf /tmp/rustdrop/rust.tar.gz -C /tmp/rustdrop
             SRC="/tmp/rustdrop/rust-${RV}-${TRIPLE}"
-            echo ">>> komponen tersedia:"; ls "$SRC"
+            echo ">>> komponen tersedia (berkas components):"; cat "$SRC/components"
             # Dist gabungan rust hanya punya install.sh di ROOT (bukan per komponen).
-            # Pakai --components dari root installer (cara resmi rust-lang).
-            COMPONENTS="rustc,cargo,rust-std-${TRIPLE},clippy-preview,rustfmt-preview"
-            if [ -f "$SRC/install.sh" ]; then
-              echo ">>> install via root install.sh --components=$COMPONENTS"
-              ( cd "$SRC" && sh ./install.sh --prefix=/tmp/ruststage --disable-ldconfig --components="$COMPONENTS" )
-            else
-              echo "    !! install.sh tidak ada di root dist, fallback salin mentah"
-              ( cd "$SRC" && cp -a ./* /tmp/ruststage/ )
-            fi
+            # Daftar komponen disaring dari berkas `components` supaya nama yang
+            # tidak ada di dist tidak membuat installer berhenti.
+            WANT="rustc cargo rust-std-${TRIPLE} clippy-preview rustfmt-preview"
+            COMPONENTS=""
+            for c in $WANT; do
+              if grep -qx "$c" "$SRC/components"; then
+                COMPONENTS="${COMPONENTS:+$COMPONENTS,}$c"
+              else
+                echo "    (komponen $c tidak ada di dist, dilewati)"
+              fi
+            done
+            case ",$COMPONENTS," in *",rustc,"*) ;; *) echo "!! komponen rustc tidak ada di dist"; exit 1 ;; esac
+            case ",$COMPONENTS," in *",rust-std-${TRIPLE},"*) ;; *) echo "!! rust-std-${TRIPLE} tidak ada di dist"; exit 1 ;; esac
+            [ -f "$SRC/install.sh" ] || { echo "!! install.sh tidak ada di root dist"; ls "$SRC"; exit 1; }
+            echo ">>> install via root install.sh --components=$COMPONENTS"
+            ( cd "$SRC" && sh ./install.sh --prefix=/tmp/ruststage --disable-ldconfig --components="$COMPONENTS" )
             mkdir -p "$D"
             cp -a /tmp/ruststage/. "$D/"
             rm -rf /tmp/rustdrop /tmp/ruststage
+          fi
+
+          # rust-src adalah artefak dist TERPISAH (bukan bagian dist gabungan).
+          # Opsional: bila gagal, build tetap lanjut (sumber crate dipakai dari
+          # prebuilts linux-x86; lihat catatan patch 0003 di bawah).
+          if [ ! -d "$D/lib/rustlib/src/rust/library" ]; then
+            echo ">>> coba pasang rust-src (artefak terpisah, opsional)"
+            rm -rf /tmp/rustsrc /tmp/ruststage_src
+            mkdir -p /tmp/rustsrc /tmp/ruststage_src
+            if curl -fL --retry 3 -o /tmp/rustsrc/src.tar.gz "https://static.rust-lang.org/dist/rust-src-${RV}.tar.gz" \
+               && tar xzf /tmp/rustsrc/src.tar.gz -C /tmp/rustsrc \
+               && ( cd "/tmp/rustsrc/rust-src-${RV}" && sh ./install.sh --prefix=/tmp/ruststage_src --disable-ldconfig ) \
+               && cp -a /tmp/ruststage_src/. "$D/"; then
+              echo "    OK  : rust-src terpasang"
+            else
+              echo "    WARN: rust-src tidak terpasang (opsional, lanjutkan)"
+            fi
+            rm -rf /tmp/rustsrc /tmp/ruststage_src
           fi
 
           # lib64/* dipakai toolchain_deps rustc; dist resmi tidak punya
@@ -494,6 +519,9 @@ jobs:
           cd ~/android/pixelos
           python3 "$GITHUB_WORKSPACE/device-tree/scripts/check-text-encoding.py" \
             device/infinix/X6840 vendor/infinix/X6840
+          # dokumen, skrip, dan workflow repo juga diperiksa (BOM/karakter kontrol)
+          ( cd "$GITHUB_WORKSPACE/device-tree" && \
+            python3 scripts/check-text-encoding.py docs scripts .github README.md )
 
       - name: Fetch vendor blobs (GitHub Release)
         run: |

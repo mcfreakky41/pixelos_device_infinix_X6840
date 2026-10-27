@@ -36,8 +36,11 @@ PRODUCT_GMS_CLIENTID_BASE := android-infinix
 # version.* yang dibuat). Menaruhnya di PRODUCT_BUILD_PROP_OVERRIDES hanya
 # menghasilkan properti asing bernama `PRIVATE_BUILD_DESC` di build.prop.
 #
-# Fingerprint memakai fingerprint stok OEM supaya aplikasi yang memfilter
-# daftar perangkat Infinix X6840 tetap mengenali perangkat ini.
+# CATATAN: nilai di bawah adalah fingerprint VENDOR (ro.vendor.build.fingerprint,
+# Android 15, lihat docs/FLASHING.md bagian 4), BUKAN fingerprint sistem stok
+# (Infinix/X6840-OP/...:16/BP2A...). Akibatnya sistem Android 16 melaporkan
+# fingerprint Android 15. Ganti ke fingerprint sistem stok bila ingin
+# konsisten dengan versi platform.
 # Catatan: ROM ini ditandatangani dengan test/dev keys, jadi Play Integrity
 # "DEVICE integrity" tetap tidak akan lolos (menuntut release key OEM).
 BUILD_FINGERPRINT := Infinix/X6840-OP/Infinix-X6840:16/BP2A.250605.031.A3/301400019:user/release-keys

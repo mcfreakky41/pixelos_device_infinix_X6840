@@ -57,7 +57,7 @@ Konsekuensi:
 
 * `mkbootimg` AOSP tidak bisa menulis cmdline ke offset 28 → `vendor_boot.img`
   hasil build akan **berbeda** dari stok dan risiko boot gagal.
-*|image `boot.img` di perangkat ini **tidak** memuat kernel_addr/page_size/
+* Image `boot.img` di perangkat ini **tidak** memuat kernel_addr/page_size/
   cmdline; semuanya ada di `vendor_boot.img`.
 
 Karena itu device tree dikonfigurasi agar `boot.img` dibangun **tanpa**
@@ -74,7 +74,7 @@ BOARD_USES_GENERIC_KERNEL_IMAGE := true
 `BOARD_USES_GENERIC_KERNEL_IMAGE := true` dipakai dengan sengaja: perangkat
 ini punya `vendor_boot` (vendor ramdisk), sehingga generic ramdisk (`init_boot`)
 harus memuat `first_stage_ramdisk/`
-(`build/make/core/Makefile:1208`). Efek sampingnyapersis yang kita mau:
+(`build/make/core/Makefile:1208`). Efek sampingnya persis yang kita mau:
 `boot.img` tidak diberi `--cmdline/--base/--pagesize`.
 
 ---
@@ -136,7 +136,7 @@ kompatibel.
 ### 5.1 Prasyarat
 
 * Device dalam **fastboot mode**: `adb reboot fastboot`
-* `fastboot` versi 1.0.41+ (milik repo ini: `tools/platform-tools`)
+* `fastboot` versi 1.0.41+ (Android platform-tools terbaru)
 * File hasil build: `system.img`, `system_ext.img`, `product.img`, `vbmeta.img`
   (semua ada di `out/target/product/X6840/` dan juga di artifact **Upload ROM**
   pada GitHub Actions run terkait)
@@ -145,31 +145,40 @@ kompatibel.
 
 `super.img` stok sudah dicadangkan lokal, tetapi formatnya tidak bisa di-unpack
 (header `gDla`), sehingga **tidak bisa dipakai sebagai jalur rollback** dengan
-tool `lpunpack`. Ambil partisi sistem mentah sebagai cadangan.
+tool `lpunpack`. Cadangkan **semua partisi yang akan ditimpa**: `system`,
+`system_ext`, `product` (partisi logical) dan `vbmeta` (partisi fisik).
+Mengembalikan hanya `system` sementara `system_ext`/`vbmeta` tetap versi ROM
+baru bisa membuat perangkat bootloop.
 
-`system_a` adalah **logical partition** (dynamic partition di dalam `super`),
-sehingga TIDAK ada di `/dev/block/by-name/` — yang ada di sana hanya `super`.
-Gunakan device mapper:
+Partisi logical (dynamic partition di dalam `super`) TIDAK ada di
+`/dev/block/by-name/` — yang ada di sana hanya `super`. Akses lewat device
+mapper (nama bisa `system_a` atau `system`; cek dulu):
 
 ```bash
-# cek dulu device mapper mana yang aktif (system_a bisa bernama "system")
 adb shell su -c "ls -l /dev/block/mapper/"
-adb shell su -c "dd if=/dev/block/mapper/system of=/data/local/tmp/system_a.img"
-adb shell su -c "ls -l /data/local/tmp/system_a.img"   # pastikan ukurannya wajar
-adb pull /data/local/tmp/system_a.img ./backup-system_a.img
-adb shell su -c "rm /data/local/tmp/system_a.img"
+SLOT=$(adb shell getprop ro.boot.slot_suffix | tr -d '\r')    # mis. _a
+for p in system system_ext product; do
+  # pakai nama yang ada di /dev/block/mapper/ (dengan atau tanpa suffix slot)
+  adb shell su -c "dd if=/dev/block/mapper/${p}${SLOT} of=/data/local/tmp/${p}.img bs=4M"
+  adb shell su -c "ls -l /data/local/tmp/${p}.img"          # pastikan ukurannya wajar
+  adb pull /data/local/tmp/${p}.img ./backup-${p}.img
+  adb shell su -c "rm /data/local/tmp/${p}.img"
+done
+adb shell su -c "dd if=/dev/block/by-name/vbmeta${SLOT} of=/data/local/tmp/vbmeta.img"
+adb pull /data/local/tmp/vbmeta.img ./backup-vbmeta.img
+adb shell su -c "rm /data/local/tmp/vbmeta.img"
 ```
 
-Jika `/dev/block/mapper/system` tidak ada, alternatifnya cadangkan seluruh
+Jika `/dev/block/mapper/<nama>` tidak ada, alternatifnya cadangkan seluruh
 `super` (ukurannya besar, tapi pasti ada):
 
 ```bash
-adb shell su -c "dd if=/dev/block/by-name/super of=/data/local/tmp/super.img"
+adb shell su -c "dd if=/dev/block/by-name/super of=/data/local/tmp/super.img bs=4M"
 ```
 
-Alternatif yang lebih murah: cek apakah slot `_b` masih berisi sistem stok —
-jika ya, slot `_b` bisa dipakai sebagai jalur rollback (jalankan
-`fastboot set-active b` untuk kembali ke sistem lama).
+> Slot `_b` **tidak** boleh diandalkan sebagai jalur rollback: tabel `lpdump`
+> di `docs/FINDINGS-HDD.md` hanya memuat partisi slot `_a`, jadi belum ada bukti
+> `_b` berisi sistem stok yang utuh.
 
 ### 5.3 Flash
 
@@ -190,19 +199,27 @@ fastboot reboot
 > `fastboot erase cache` **tidak** tersedia di perangkat ini
 > ("Partition doesn't exist") — tidak masalah.
 
-Helper otomatis: `scripts/flash-rom.ps1` (di repo proyek, di luar git publik
-device tree) menjalankan urutan di atas.
+Helper otomatis: skrip `flash-rom.ps1` lokal (tidak ada di repo publik ini)
+menjalankan urutan di atas.
 
 ---
 
 ## 6. Rollback
 
-1. **Pulihkan image sistem** dari backup `system_a.img` (lihat §5.2):
-   `fastboot flash system backup-system_a.img`
-   (lalu `fastboot flash product <product_stok.img>` bila ada).
-2. Atau **pindah slot**: `fastboot set-active b` (bila slot `_b` masih utuh).
-3. Semua image `boot`/`vendor_boot`/`init_boot`/`vendor`/`odm`/`*_dlkm` **tidak
+1. **Pulihkan semua partisi yang ditimpa** dari backup §5.2 (fastbootd):
+   ```bash
+   fastboot flash system      backup-system.img
+   fastboot flash system_ext  backup-system_ext.img
+   fastboot flash product     backup-product.img
+   fastboot --disable-verity --disable-verification flash vbmeta backup-vbmeta.img
+   ```
+   (bila `backup-vbmeta.img` memuat flag verifikasi aktif, flash tanpa flag
+   `--disable-*` agar sama dengan stok).
+2. Semua image `boot`/`vendor_boot`/`init_boot`/`vendor`/`odm`/`*_dlkm` **tidak
    pernah diubah**, jadi selalu dalam kondisi baik.
+3. `fastboot set-active b` hanya berguna bila slot `_b` terbukti berisi sistem
+   stok (belum terbukti, lihat catatan §5.2) — jangan dijadikan satu-satunya
+   jalur rollback.
 
 ---
 
@@ -210,8 +227,8 @@ device tree) menjalankan urutan di atas.
 
 - [ ] `fastboot getvar current-slot` → pastikan slot yang dituju
 - [ ] `fastboot getvar is-userspace` → `yes` (butuh fastbootd untuk partisi dinamis)
-- [ ] Ukuran partisi pada device cocok dengan `BoardConfig.mk`
-      (`BOARD_SYSTEMIMAGE_PARTITION_SIZE := 3065143296`, dst.)
-- [ ] Backup `system_a` sudah diambil (atau slot `_b` dipastikan utuh)
+- [ ] Ukuran image hasil build muat di partisi logical device (fastbootd mengubah
+      ukuran otomatis; pastikan `super` punya ruang cukup)
+- [ ] Backup `system`, `system_ext`, `product`, dan `vbmeta` sudah diambil dan ukurannya wajar
 - [ ] `vbmeta.img` flashed **dengan** `--disable-verity --disable-verification`
 - [ ] **Jangan** flash `super.img`

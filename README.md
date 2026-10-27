@@ -30,9 +30,8 @@ dibangun dari nol — bukan GSI.
 ## Struktur repositori
 
 ```
-device/infinix/X6840/     Device tree (BoardConfig, device.mk, overlay, sepolicy, ...)
+device/infinix/X6840/     Device tree (BoardConfig, device.mk, rootdir, sepolicy, prebuilt kernel)
 vendor/infinix/X6840/     Vendor tree (kosong di git — blob ada di Release)
-hardware/transsion/       HAL khusus Transsion (opsional)
 patches/arm64-host/       Patch build host ARM64 + dokumentasinya
 scripts/                  Skrip bantu (patch, build, monitoring)
 .github/workflows/        CI build (GitHub Actions)

@@ -1,6 +1,6 @@
-﻿# STATUS PROJECT — PixelOS X6840
+# STATUS PROJECT — PixelOS X6840
 
-Terakhir update: 2026-10-22 (run #20 gagal karena BOM UTF-8 di `X6840-vendor.mk` — sudah diperbaiki; run #21 dispatched)
+Terakhir update: diperbarui manual (lihat riwayat git untuk status run terbaru; berkas ini tidak otomatis)
 
 ## Ringkas
 | Item | Status |
@@ -55,7 +55,7 @@ awal komentar. Penyebabnya `Set-Content -Encoding UTF8` di PowerShell 5.1 yang
 selalu menulis BOM.
 
 Pencegahan (3 lapis):
-1. `scripts/gen-vendor-mk.ps1` → tulis via `[System.IO.File]::WriteAllText`
+1. `scripts/gen-vendor-mk.ps1` (skrip lokal, tidak ada di repo publik) → tulis via `[System.IO.File]::WriteAllText`
    dengan `UTF8Encoding($false)` + baris LF paksa, lalu verifikasi.
 2. `.gitattributes` → `*.mk text eol=lf` (+ `.yml/.yaml/.gitignore/proprietary-files.txt`).
 3. `scripts/check-text-encoding.py` → step CI sebelum build; gagal **dalam hitungan
@@ -133,10 +133,10 @@ Penyelesaian lewat dua sumbu, dibuktikan dengan probe (`probe-disk` & `probe-dis
 ```
 gh run list -R mcfreakky41/pixelos_device_infinix_X6840
 ```
-atau via API (script: scripts/check-build.ps1)
+atau via API (skrip lokal `check-build.ps1`, tidak ada di repo publik)
 
 ## Yang sudah dilengkapi (commit da90e0c)
-- BoardConfig.mk: DEVICE_PATH, ukuran partisi byte-exact, boot/init_boot/vendor_boot,
+- BoardConfig.mk: DEVICE_PATH, ukuran super/grup (ukuran image dinamis tidak di-hardcode), boot/init_boot/vendor_boot,
   kernel offsets, A/B partition list, AVB vbmeta_system+vendor, bootconfig
 - device.mk: API 36, ART tuning 4GB, DSDS/VoLTE, fstab copy, dynamic partitions
 - pixelos_X6840.mk: inherit `vendor/aosp/config/common_full_phone.mk`
@@ -195,7 +195,7 @@ Berdasarkan blog Actinis (peta jalan lengkap setelah patch host), dinding beriku
 ## Update terkini (2026-10-23)
 | Item | Status |
 |---|---|
-| Vendor APK di Soong | Pindah ke `prebuilt_any` (endor/infinix/X6840/Android.bp) dengan `sub_dir` biar dipasang persis ke endor/app/ & endor/overlay/ (hindari PRODUCT_COPY_FILES yang ditolak uild/make). |
+| Vendor APK di Soong | Pindah ke `prebuilt_any` (vendor/infinix/X6840/Android.bp) dengan `sub_dir` biar dipasang persis ke vendor/app/ & vendor/overlay/ (hindari PRODUCT_COPY_FILES yang ditolak build/make). |
 | BoardConfig mkbootimg | Tambah `--kernel_offset` dan `--ramdisk_offset` ke BOARD_MKBOOTIMG_ARGS. |
 | CI Rust arm64 | Fix symlink librustc_driver ke prebuilts/rust/.../lib64/ tanpa bergantung cd (langsung link per-file + validasi). |
 | Build terkini | run #26 (4ff4b26) - in_progress, setelah fix step Rust. |
@@ -210,3 +210,13 @@ Berdasarkan blog Actinis (peta jalan lengkap setelah patch host), dinding beriku
 | BOARD_MAIN_SIZE | Fixed: 9659482112 (super - 4MiB) |
 | Partition sizes | Unset dynamic partition sizes (build computes minimum) |
 | Build terkini | run #42 (sha 039b966) - in_progress |
+
+## Revisi perbaikan (2026-10-26)
+| Item | Perubahan |
+|---|---|
+| `fix-source-tree.sh` | + nonaktifkan `VibratorCL` (Qualcomm-only), regex V2.1 diperkuat, cek referensi `PRODUCT_PACKAGES`, symlink rusak generik (`maxdepth 4`) |
+| Step Rust (`build.yml`) | komponen disaring dari berkas `components` (tidak berhenti bila nama tak ada), fallback "salin mentah" dihapus (diganti `exit 1`), `rust-src` dipasang dari artefak terpisah (opsional) |
+| `fetch-blobs.sh` | verifikasi `SHA256SUMS` bila tersedia, cek semua sumber `proprietary/` yang dirujuk `vendor.mk`/`Android.bp` ada |
+| `check-text-encoding.py` | + `.md`, + karakter kontrol (VT/BS), + `docs scripts .github README.md` |
+| `FLASHING.md` | backup 4 partisi (system, system_ext, product, vbmeta), rollback lengkap, klaim slot `_b` dikoreksi, referensi file yang tidak ada dihapus |
+| Encoding | `STATUS.md`: BOM dibuang; `\v` dan `\b` PowerShell yang bocor (VT/BS) dipulihkan menjadi `v`/`b` |

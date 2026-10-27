@@ -1,67 +1,78 @@
 #!/bin/bash
-# Fix broken PixelOS sixteen source tree files before build
+# Nonaktifkan/perbaiki bagian source tree PixelOS sixteen yang merusak analisis
+# Soong untuk perangkat ini (MediaTek: tanpa HAL Qualcomm, tanpa Lineage SDK).
+# Jalankan dari root source tree (~/android/pixelos). Idempoten.
 
-echo ">>> Fixing broken hardware/qcom symlinks (generic)..."
-# Generic: find all broken symlinks named Android.bp under hardware/ and replace with stubs
-find hardware -maxdepth 3 -name Android.bp -xtype l -print 2>/dev/null | while read -r bp; do
+disable_bp() {
+    # $1 = path Android.bp, $2 = alasan singkat
+    if [ -f "$1" ]; then
+        mv "$1" "$1.disabled"
+        echo "  Disabled: $1  ($2)"
+    else
+        echo "  (lewati, tidak ada / sudah nonaktif: $1)"
+    fi
+}
+
+echo ">>> Fixing broken hardware/ symlinks (generic)..."
+# Symlink Android.bp yang rusak (mis. hardware/qcom/*/Android.bp -> gps/os_pickup.bp)
+# diganti stub supaya Soong tidak berhenti.
+find hardware -maxdepth 4 -name Android.bp -xtype l -print 2>/dev/null | while read -r bp; do
     echo "  Removing broken symlink: $bp"
     rm -f "$bp"
     echo "// Stub to satisfy soong (original symlink was broken)" > "$bp"
 done
 
 echo ">>> Fixing livedisplay undefined module references..."
-# livedisplay service repos (HIDL) reference vendor.lineage.livedisplay@2.0
-# but interfaces repo (AIDL) provides vendor.lineage.livedisplay (no @2.0)
-# Since device tree doesn't use livedisplay, disable service implementations.
-for dir in hardware/lineage/livedisplay/sysfs hardware/lineage/livedisplay/sdm hardware/lineage/livedisplay/legacymm; do
-    if [ -f "$dir/Android.bp" ]; then
-        mv "$dir/Android.bp" "$dir/Android.bp.disabled"
-        echo "  Disabled: $dir/Android.bp"
-    fi
-done
+# Log Soong: "depends on undefined module" (BUKAN duplikat). hardware/lineage/
+# livedisplay (HIDL) butuh vendor.lineage.livedisplay@2.0, sedangkan repo
+# interfaces (AIDL) hanya menyediakan vendor.lineage.livedisplay (V1/V2).
+# Perangkat ini tidak punya HAL LiveDisplay, jadi implementasi HAL dinonaktifkan.
+disable_bp hardware/lineage/livedisplay/sysfs/Android.bp "HAL HIDL livedisplay tidak dipakai"
+disable_bp hardware/lineage/livedisplay/sdm/Android.bp   "HAL HIDL livedisplay tidak dipakai"
+disable_bp hardware/lineage/livedisplay/legacymm/Android.bp "HAL HIDL livedisplay tidak dipakai"
 
-# frameworks/base references V2.0-java and V2.1-java (HIDL versions)
-# but interfaces repo provides V1-java and V2-java (AIDL versions)
-# Fix: change V2.0-java -> V2-java, and remove V2.1-java entry (to avoid duplicate)
+# frameworks/base menyebut V2.0-java dan V2.1-java (HIDL); yang ada V1/V2-java (AIDL).
+# V2.0-java -> V2-java, entri V2.1-java dibuang supaya tidak ada duplikat.
+# CATATAN: hanya aman bila kode Java framework tidak memakai kelas HIDL
+# (vendor.lineage.livedisplay.V2_*); kalau memakai, error pindah ke tahap javac.
 if [ -f frameworks/base/Android.bp ]; then
     python3 - frameworks/base/Android.bp << 'PYEOF'
 import sys, re
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
 s = s.replace('vendor.lineage.livedisplay-V2.0-java', 'vendor.lineage.livedisplay-V2-java')
-# Remove duplicate V2.1-java entry (V2.0 already became V2-java)
-s = re.sub(r'\n[ \t]*"vendor\.lineage\.livedisplay-V2\.1-java",?', '', s)
+# Buang entri V2.1-java apa pun bentuk daftarnya (multi-baris / satu baris / tanpa koma akhir)
+s = re.sub(r'[ \t]*"vendor\.lineage\.livedisplay-V2\.1-java",?[ \t]*\n?', '', s)
 open(p, "w", encoding="utf-8").write(s)
 print("  Fixed:", p)
 PYEOF
 fi
 
 echo ">>> Fixing SimpleSettingsConfig undefined dependency..."
-# SimpleSettingsConfig depends on org.lineageos.platform.internal which doesn't exist
-# Disable the module since device tree doesn't use it
-if [ -f packages/apps/SimpleSettingsConfig/Android.bp ]; then
-    mv packages/apps/SimpleSettingsConfig/Android.bp packages/apps/SimpleSettingsConfig/Android.bp.disabled
-    echo "  Disabled: packages/apps/SimpleSettingsConfig/Android.bp"
-fi
+# Bergantung pada org.lineageos.platform.internal (Lineage SDK) yang tidak ada di tree ini.
+disable_bp packages/apps/SimpleSettingsConfig/Android.bp "butuh org.lineageos.platform.internal"
 
-
-
-echo ">>> Disabling Qualcomm-only VibratorCL (tidak dipakai di MediaTek)..."
-# VibratorCL depends on libspf-headers, libarosal_headers, libpalclient
-# which only exist in Qualcomm CAF namespaces, not on MediaTek MT6768
-bp=vendor/qcom/opensource/vibrator/aidl/VibratorCL/Android.bp
-if [ -f "$bp" ]; then
-    mv "$bp" "$bp.disabled"
-    echo "  Disabled: $bp"
-fi
-
-
+echo ">>> Disabling Qualcomm-only VibratorCL..."
+# vendor.qti.hardware.vibratorCL.impl butuh libspf-headers, libarosal_headers, libpalclient
+# (hanya ada di namespace qcom-caf; modul ini ada di namespace root). Tidak relevan di MediaTek.
+disable_bp vendor/qcom/opensource/vibrator/aidl/VibratorCL/Android.bp "Qualcomm-only, dependensi tidak ada"
 
 echo ">>> Disabling Qualcomm Vibrator aidl (depends on VibratorCL)..."
-bp=vendor/qcom/opensource/vibrator/aidl/Android.bp
-if [ -f "$bp" ]; then
-    mv "$bp" "$bp.disabled"
-    echo "  Disabled: $bp"
-fi
+# parent aidl/Android.bp references vendor.qti.hardware.vibratorCL.impl
+disable_bp vendor/qcom/opensource/vibrator/aidl/Android.bp "depends on VibratorCL (disabled)"
+
+echo ">>> Cek referensi ke modul yang dinonaktifkan (PRODUCT_PACKAGES dll.)..."
+# Kalau makefile produk masih memasukkan modul yang sudah dinonaktifkan, Kati/Ninja
+# akan gagal belakangan. Hanya melapor, tidak mengubah apa pun.
+for name in vendor.qti.hardware.vibratorCL SimpleSettingsConfig 'vendor.lineage.livedisplay@2.0-service'; do
+    hits=$(grep -rIl --include='*.mk' --include='Android.mk' --include='Android.bp' --include='*.xml' \
+              -e "$name" vendor device build packages hardware 2>/dev/null | head -5)
+    if [ -n "$hits" ]; then
+        echo "  PERINGATAN: '$name' masih direferensikan di:"
+        echo "$hits" | sed 's/^/      /'
+    else
+        echo "  OK: tidak ada referensi ke '$name'"
+    fi
+done
 
 echo ">>> Source tree fixes applied."
