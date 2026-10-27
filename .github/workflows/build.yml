@@ -36,6 +36,7 @@ jobs:
       # Solusi: cleanup native + partial-clone + reclaim .git/.repo.
       - name: Free disk space (native)
         run: |
+          set +e
           echo "=== Disk sebelum ==="; df -h /
           # Hapus toolchain besar yang tidak dipakai build AOSP
           sudo rm -rf /usr/share/dotnet            || true
@@ -49,7 +50,7 @@ jobs:
           sudo rm -rf /usr/share/swift              || true
           # Bersihkan docker images & apt cache
           sudo docker image prune -af 2>/dev/null || true
-          sudo apt-get clean
+          sudo apt-get clean || true
           # Matikan swap (kalau ada) supaya tidak makan disk
           sudo fallocate -l 4G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 2>/dev/null
           sudo chmod 600 /swapfile
