@@ -9,12 +9,11 @@
 #  - coredomain (mis. system_server) tidak boleh menulis properti vendor,
 #  - aturan `vendor_init vendor_file` sudah ada di AOSP, jadi tidak diulang.
 
-# --- Properti khas vendor MTK ---
-vendor_internal_prop(vendor_mtk_prop)
-allow vendor_init vendor_mtk_prop:property_service set;
-allow vendor_init vendor_mtk_prop:file { read open getattr map };
+# Hapus definisi tipe yang tidak digunakan (vendor_mtk_prop, transsion_service)
+# karena tidak ada property_contexts/service_contexts yang mendukungnya.
+# Tipe-tipe ini didefinisikan tanpa referensi ke prop atau service yang nyata,
+# sehingga hanya menambahkan risiko neverallow violation saat build.
 
-# --- Service Transsion (vendor) reachable dari app ---
-type transsion_service, app_api_service, service_manager_type;
-allow platform_app transsion_service:service_manager find;
-allow system_app transsion_service:service_manager find;
+# Jika di masa depan diperlukan, tambahkan entri yang sesuai di:
+# - device/infinix/X6840/sepolicy/vendor/property_contexts
+# - device/infinix/X6840/sepolicy/vendor/service_contexts
