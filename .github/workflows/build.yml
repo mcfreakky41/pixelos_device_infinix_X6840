@@ -51,8 +51,10 @@ jobs:
           sudo docker image prune -af 2>/dev/null || true
           sudo apt-get clean
           # Matikan swap (kalau ada) supaya tidak makan disk
-          sudo swapoff -a 2>/dev/null || true
-          sudo rm -f /swapfile /mnt/swapfile 2>/dev/null || true
+          sudo fallocate -l 4G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 2>/dev/null
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile 2>/dev/null
+          sudo swapon /swapfile 2>/dev/null
           echo "=== Disk sesudah ==="; df -h /
           echo "=== Inodes ==="; df -ih /
 
@@ -575,9 +577,9 @@ jobs:
           export CCACHE_EXEC=$(which ccache)
           export USE_CCACHE=1
           export CCACHE_DIR=/home/runner/.ccache
-          ccache -M 2G
+          ccache -M 1G
           # Android 16 butuh RAM besar; batasi job agar runner tidak OOM
-          JOBS=$(( $(nproc --all) / 2 ))
+          JOBS=$(( $(nproc --all) / 4 ))
           echo "Memakai -j$JOBS  (nproc=$(nproc --all))"
           # PENTING: nama product kita 'pixelos_X6840' mengandung underscore.
           # Format legacy 'product-variant' akan di-parse dgn delimiter '-'
