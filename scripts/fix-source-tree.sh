@@ -72,4 +72,4 @@ for name in vendor.qti.hardware.vibratorCL SimpleSettingsConfig 'vendor.lineage.
     fi
 done
 
-echo ">>> Source tree fixes applied."
+echo ">>> Disabling Qualcomm vibratorCL Android.bp..."\ndisable_bp vendor/qcom/opensource/vibrator/aidl/VibratorCL/Android.bp "Qualcomm-only vibrator, not needed for MediaTek"\necho ">>> Source tree fixes applied."
