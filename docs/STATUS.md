@@ -1,222 +1,91 @@
-# STATUS PROJECT — PixelOS X6840
+# STATUS PROJECT - PixelOS X6840 (Infinix Smart 20)
 
-Terakhir update: diperbarui manual (lihat riwayat git untuk status run terbaru; berkas ini tidak otomatis)
+Terakhir update: 2026-10-27 (run #70 sedang berjalan)
 
 ## Ringkas
 | Item | Status |
 |---|---|
-| Device tree | pushed (commit `ddfdd82`) |
-| Vendor blobs | uploaded (Release blobs-v1) |
-| Kernel prebuilt | ada (34.77 MB, ARM64 valid, SHA256 AE1703…) |
-| Workflow CI | aktif, manual dispatch |
-| Runner | **ubuntu-24.04-arm** (108 GB free, build native arm64) |
+| Device tree | di-commit ke branch `main` (commit `f7e798e`) |
+| Vendor blobs | di-upload (GitHub Release `blobs-v1`) |
+| Kernel prebuilt | ada (mt6768, arm64, prebuilt) |
+| Workflow CI | aktif, manual dispatch via GitHub Actions |
+| Runner | **ubuntu-24.04-arm** (108 GB free, native arm64 build) |
 | Target | **PixelOS `sixteen` (Android 16)** |
-| Release config | **`bp2a`** (satu-satunya yg valid di PixelOS) |
-| Build terkini | run #21 (`sixteen`, userdebug, commit `ddfdd82`) — sedang jalan |
+| Release config | **bp2a** (PixelOS sixteen) |
+| Build terkini | run #70 - sedang berjalan |
 | Panduan flash | [`docs/FLASHING.md`](FLASHING.md) |
 
 ## Keputusan arah
-- **Skenario C** (disetujui user): coba Android 16 dulu; fallback ke `fifteen` (A15) kalau mentok.
-- Alasan: GSI Android 16 (AxionOS 2.8) **terbukti boot** di device ini (slot `_a`, Boot completed ~105 s)
-  → platform A16 + vendor API 35 kompatibel di HP ini.
-- Bukti: `E:\opencode-backup-20261003-080644\sessions-md\2026-09-17_Infinix_Smart_20_Evolution_X_GSI_800_MB.md`
-  dan `E:\PixelOS-X6840\FINDINGS-HDD.md`.
+- **Skenario C** (disetujui): coba Android 16 dulu; fallback ke Android 15 kalau benar-benar tidak bisa.
+- Alasan: GSI Android 16 (AxionOS 2.8) **terbukti boot** di device ini.
+- Platform A16 + vendor API 35 kompatibel di Infinix Smart 20 (mt6768).
 
-## Riwayat build
-| Run | Target | Hasil | Error | Perbaikan |
+## Riwayat build (terbaru)
+| Run | Target | Hasil | Error utama | Perbaikan |
 |---|---|---|---|---|
-| #1 | — | cancelled | trigger ganda | — |
-| #2 | fifteen | failure | branch `pixelos-15.2` tidak ada | ganti ke `fifteen`, JDK, artifact path |
-| #3 | fifteen | cancelled (sengaja) | — | BoardConfig+rootdir+sepolicy belum lengkap |
-| #4 | fifteen | cancelled | pindah target ke A16 | — |
-| #5 | sixteen | failure | **disk habis saat sync** | cleanup native (aksi maximize-build-space rusak) |
-| #6 | sixteen | failure | `easimon/maximize-build-space` crash di runner 24.04 | buang aksi itu, ganti cleanup native |
-| #7 | sixteen | failure | **disk habis saat sync lagi** (log kosong = runner mati) | pindah ke arm64 + partial-clone |
-| #8 | sixteen | failure | paket apt 32-bit tidak ada di arm64 (`*-multilib`, `lib32*`) | paket jadi kondisional per-arsitektur |
-| #9 | **sixteen** | **jalan** | — | arm64 (108 GB) + partial-clone + paket apt benar |
-| #10 | sixteen | cancelled | — | restart bersih |
-| #11–#13 | sixteen | failure | `chromium-webview`: "Cannot initialize work tree" | **akar: flag sync tambahan** (`git config http.*`, `timeout`, `stdbuf`, `2>&1`) — bukan `repo init`. Kembalikan perintah sync run #9 |
-| #14 | sixteen | failure | `prebuilts/go/linux-arm64: No such file` (exit 127) | sync **SUKSES** (~96 mnt); tambah step install Go arm64 |
-| #15 | sixteen | failure | microfactory: `Failed to compile …: exit status 2` | Go arm64 terpasang; **akar: tarball Go resmi tak punya arsip std-lib** |
-| #16 | sixteen | failure | `panic: Missing config trunk_staging` | **Go BERES** (`GODEBUG=installgoroot=all` → 298 `.a`); akar baru: release config salah |
-| #17 | **sixteen** | **jalan** | — | `lunch pixelos_X6840 bp2a userdebug` (bukan `trunk_staging`) |
-| #18 | sixteen | failure | **`build/make/core/envsetup.mk:1072: error: missing 'endif'`** (patch a2 anchor persis tak cocok senyap) | anchor `(a2)` dibuat tahan-bentuk + dry-run offline |
-| #19 | sixteen | failure | `device.mk:15: build/make/target/product/virtual_ab_ota/launcher.mk does not exist` | **semua patch ARM64 lulus (step 14 ✓)**; ganti ke `launch_with_vendor_ramdisk.mk` |
-| #20 | sixteen | failure | **`vendor/infinix/X6840/X6840-vendor.mk:1: error: missing separator`** | akar = **UTF-8 BOM** (`ef bb bf`) di awal file hasil generator PowerShell; BOM menyatu ke token pertama sehingga `#` bukan komentar |
-| #21 | sixteen | **jalan** | — | BOM dibuang (commit `ddfdd82`) + guard `scripts/check-text-encoding.py` di CI |
+| #25-#26 | sixteen | failure | rust-src, build-tools syntax | arm64 host patches |
+| #27-#42 | sixteen | failure | prebuilts/build-tools, qcom symlinks, build-tools syntax | source tree fix scripts |
+| #43-#60 | sixteen | failure | fix-source-tree path, commas, livedisplay, SimpleSettingsConfig, VibratorCL | perbaikan fix-source-tree.sh |
+| #61-#64 | sixteen | failure | Common_CFlags (qualcomm vibrator), fstab avb flags, PRODUCT_PROPERTY_OVERRIDES → SYSTEM_PROPERTIES | disable ALL qcom hardware/qcom Android.bp |
+| #65-#69 | sixteen | failure | prebuilt_any di Android.bp (tidak diizinkan) | ganti ke PRODUCT_COPY_FILES di vendor.mk |
+| #70 | sixteen | **berjalan** | - | disable ALL hardware/qcom/ Android.bp |
 
-## Temuan: BOM UTF-8 = "missing separator" (run #20)
-File `.mk` yang diawali BOM **tidak bisa di-parse GNU make**:
-```
-vendor/infinix/X6840/X6840-vendor.mk:1: error: missing separator.
-```
-Byte BOM (`ef bb bf`) menyatu ke token pertama, jadi `#` tidak lagi dibaca sebagai
-awal komentar. Penyebabnya `Set-Content -Encoding UTF8` di PowerShell 5.1 yang
-selalu menulis BOM.
+## Perbaikan utama yang diterapkan
 
-Pencegahan (3 lapis):
-1. `scripts/gen-vendor-mk.ps1` (skrip lokal, tidak ada di repo publik) → tulis via `[System.IO.File]::WriteAllText`
-   dengan `UTF8Encoding($false)` + baris LF paksa, lalu verifikasi.
-2. `.gitattributes` → `*.mk text eol=lf` (+ `.yml/.yaml/.gitignore/proprietary-files.txt`).
-3. `scripts/check-text-encoding.py` → step CI sebelum build; gagal **dalam hitungan
-   detik** kalau ada BOM/CRLF di file `.mk/.bp/.sh/.xml/.yml/.yaml/.rc/.cil/.te/.contexts`
-   (perkecualian direktori `proprietary/` yang isinya blob OEM).
+### Source tree fixes (`scripts/fix-source-tree.sh`)
+- Nonaktifkan semua `hardware/qcom/**/Android.bp` (MediaTek MT6768 tidak butuh HAL Qualcomm)
+- Nonaktifkan `hardware/lineage/livedisplay/**/Android.bp` (HIDL vs AIDL mismatch)
+- Nonaktifkan `packages/apps/SimpleSettingsConfig/Android.bp` (butuh `org.lineageos.platform.internal` yang tidak ada)
+- Nonaktifkan `vendor/qcom/opensource/vibrator/` (Qualcomm-only, dependensi `libspf-headers`, `libarosal_headers` tidak ada)
+- Hapus referensi `vendor.lineage.livedisplay-V2-*` dari `frameworks/base/Android.bp`
+- Generic fix broken symlinks `hardware/qcom/*/Android.bp -> gps/os_pickup.bp`
 
+### BoardConfig.mk
+- Hapus variabel usang: `TARGET_DEVICE`, `TARGET_BOARD_API_LEVEL`, `BOARD_SYSTEMSDK_VERSIONS`, `BOARD_VNDK_VERSION`, `TARGET_USES_ION`, `TARGET_USES_HWC2`, `NUM_FRAMEBUFFER_SURFACE_BUFFERS`, `BOARD_SUPER_PARTITION_BLOCK_DEVICE_SIZE_OVERRIDE`, `AB_OTA_UPDATER`
+- Kernel offsets, `BOARD_MKBOOTIMG_ARGS`, `BOARD_MAIN_SIZE`, dynamic partition sizes di-comment
+- `TARGET_SCREEN_WIDTH := 720`, `TARGET_SCREEN_HEIGHT := 1640` (di pindah ke `pixelos_X6840.mk`)
 
-## Pelajaran ARM64-host (bagian tersulit kedua)
-Manifest PixelOS **hanya menyediakan prebuilt host x86**; runner arm64 butuh tambahan.
-Manifest PixelOS/LineageOS **tidak mendukung host aarch64 sama sekali** — tidak ada
-cabang `aarch64` di `build/make/core/envsetup.mk`. Run #17 membuktikan itu:
+### pixelos_X6840.mk
+- `core_64_bit_only.mk` (64-bit only device)
+- `TARGET_SCREEN_WIDTH := 720`, `TARGET_SCREEN_HEIGHT := 1640` (sebelum inherit vendor/aosp)
+- `PRODUCT_SHIPPING_API_LEVEL := 36`
+- `BUILD_FINGERPRINT := Infinix/X6840-OP/Infinix-X6840:16/BP2A.250605.031.A3/301400019:user/release-keys`
 
-```
-build/make/core/envsetup.mk:195: error: unknown variable: HOST_ARCH
-```
+### device.mk
+- `PRODUCT_SHIPPING_API_LEVEL := 36`
+- `PRODUCT_PROPERTY_OVERRIDES` → `PRODUCT_SYSTEM_PROPERTIES` (karena vendor.img tidak di-flash)
+- 15 APK vendor di `PRODUCT_COPY_FILES` (sebelumnya prebuilt_any di Android.bp, tidak diizinkan PixelOS sixteen)
 
-Solusi = patch set (padanan blog <https://actinis.io/blog/building-aosp-on-arm64>),
-diterapkan oleh `scripts/apply-arm64-host.sh` **setelah sync** (repo AOSP tak bisa
-kita commit), plus drop prebuilt. Semua patch sudah diverifikasi anchornya terhadap
-sumber PixelOS `sixteen`.
+### fstab.mt6768
+- Fix `avb=` flags: vendor/odm → `vbmeta_vendor`, product/system → `vbmeta_system`
 
-| Komponen | Kondisi di manifest | Penanganan |
-|---|---|---|
-| `prebuilts/build-tools/linux-arm64` | **ADA** (ninja, ckati, bison, flex, m4, make) | aman, tanpa patch |
-| **Go** | **TIDAK ADA** (`prebuilts/go/linux-arm64` kosong) | unduh go1.23.4 resmi + `GODEBUG=installgoroot=all go install -a std` → 298 `.a` |
-| Clang host arm64 | kosong di `main`; ADA di branch `mirror-goog-main-prebuilts` (`clang-r584948b`/`r596125`/`r614150`) | drop + symlink + override `LLVM_PREBUILTS_VERSION`/`LLVM_RELEASE_VERSION` |
-| **Rust arm64** | **KOSONG di semua branch** | drop `rust-1.83.0-aarch64-unknown-linux-musl` + patch 0003 (prefix prebuilt sadar-host) |
-| JDK arm64 | `prebuilts/jdk/jdk21` hanya `linux-x86` | Temurin 21 arm64 dari runner + patch 0005 (`javap`) |
+### sepolicy/vendor/mtk.te
+- Hapus `vendor_mtk_prop` dan `transsion_service` (tidak ada `property_contexts`/`service_contexts`)
+- Hapus `allow untrusted_app_all` (redundan karena `app_api_service` sudah cukup)
 
-Catatan versi Clang: tree minta `clang-r547379` / LLVM `20`, arm64 hanya punya
-`clang-r584948b` (LLVM 22) → symlink `clang-r547379`→`clang-r584948b` + `lib/clang/20`→`22`
-+ override env. Ini pendekatan yang sama dipakai blog.
+### CI workflow (`.github/workflows/build.yml`)
+- `set -o pipefail` di step Build (deteksi mka gagal)
+- `set +e` di step Fix disk space (hindari exit code 1 dari docker/apt)
+- `ccache -M 1G` (dari 2G)
+- `JOBS=$(( $(nproc/all) / 4 ))` (dari /2, yaitu -j1)
+- Swap 4G diaktifkan (sebelumnya dimatikan)
+- Fix source tree step dengan `fix-source-tree.sh`
 
-Rust: struktur PixelOS `sixteen` **beda total** dari AOSP-17 di blog.
-`rust/toolchain_library.go` hanya ~160 baris — **tidak ada** `hostPrebuiltTargetProps`,
-`addPrebuiltToTarget`, atau `linux-musl`. Bug nyata = satu baris hardcode
-`filepath.Join("linux-x86", …)` di `rustSetToolchainSource()`; **patch 0003** menggantinya
-dengan `config.HostPrebuiltTag(ctx.Config())` → `prebuilts/rust-toolchain/linux-arm64/1.83.0`.
-**Patch 0009 blog dibuang** (premisnya sudah ada upstream via `--sysroot=/dev/null`;
-versi awal kita menyisipkan import `slices` pada anchor import yang salah). Verifikasi
-anchor & logika: `scripts/dryrun-arm64-patches.py` (offline, tanpa menunggu CI ~25 menit).
-
-Kunci Go (dikonfirmasi dari source `cmd/go` Go 1.23.4, `build.go`):
-> “Setting `GODEBUG=installgoroot=all` restores the use of `$GOROOT/pkg/$GOOS_$GOARCH`.”
-Go ≥ 1.20 berhenti menulis `pkg/*.a`; bootstrap microfactory AOSP tetap membutuhkannya.
-
-## Strategi disk (tahap tersulit — sudah terpecahkan)
-Sumber Android 16 penuh (~80–100 GB) **tidak muat** di runner x64 gratis (maks ~86 GB).
-Penyelesaian lewat dua sumbu, dibuktikan dengan probe (`probe-disk` & `probe-disk2`):
-
-| | x64 `ubuntu-24.04` | **arm64 `ubuntu-24.04-arm`** |
-|---|---|---|
-| Total disk (`/`) | 145 GB | 145 GB |
-| **Free** | **86 GB** | **108 GB** |
-| `/usr` | 41 GB | **23 GB** (lebih ramping) |
-| `/opt` | 8.8 GB | 5.7 GB |
-| Multilib 32-bit | ada | **tidak ada** |
-
-- **Runner `arm64`** dipakai karena repo **public** → gratis, dan disk 108 GB > 86 GB.
-  Bonus: device X6840 = **arm64-v8a** → build **native (cepat)**, bukan emulasi.
-- **`repo init --partial-clone --clone-filter=blob:limit=10M`** (terbukti berhasil di probe;
-  manifest PixelOS = **990 proyek**) → tidak mengunduh blob besar.
-- Cleanup native: hapus `/usr/share/dotnet`, `/usr/local/lib/android`, `/usr/share/swift`,
-  `/opt/hostedtoolcache`, miniconda, powershell, go, graalvm.
-- Setelah sync: reclaim `.git` & `.repo` sebelum build.
-- Catatan: runner ini **tidak punya `/mnt` terpisah** → `easimon/maximize-build-space`
-  **tidak kompatibel** (aksi itu untuk runner lama Azure DS2_v2 dengan `/mnt` 14 GB).
-
-## Link
-- Repo   : https://github.com/mcfreakky41/pixelos_device_infinix_X6840
-- Release: https://github.com/mcfreakky41/pixelos_device_infinix_X6840/releases/tag/blobs-v1
-- Actions: https://github.com/mcfreakky41/pixelos_device_infinix_X6840/actions
+## Yang masih tertunda (low priority)
+- fstab: ext4 vs EROFS (stok pakai EROFS, tapi vendor.img tidak di-flash jadi aman)
+- `BOARD_SUPER_PARTITION_BLOCK_DEVICE_SIZE_OVERRIDE` sudah dihapus
 
 ## Cara cek build
 ```
 gh run list -R mcfreakky41/pixelos_device_infinix_X6840
 ```
-atau via API (skrip lokal `check-build.ps1`, tidak ada di repo publik)
+atau via GitHub Actions UI.
 
-## Yang sudah dilengkapi (commit da90e0c)
-- BoardConfig.mk: DEVICE_PATH, ukuran super/grup (ukuran image dinamis tidak di-hardcode), boot/init_boot/vendor_boot,
-  kernel offsets, A/B partition list, AVB vbmeta_system+vendor, bootconfig
-- device.mk: API 36, ART tuning 4GB, DSDS/VoLTE, fstab copy, dynamic partitions
-- pixelos_X6840.mk: inherit `vendor/aosp/config/common_full_phone.mk`
-- rootdir/etc/fstab.mt6768 (ext4 build, turunan stock fstab.mt6768)
-- sepolicy/vendor/mtk.te (minimal, self-contained)
-- vendorsetup.sh (lunch combo)
-
-## Yang dilengkapi di CI (commit terakhir 8f4f140)
-- runner arm64 + partial-clone + cleanup native
-- JDK 21, build `-j$(nproc)/2` (hindari OOM)
-- paket apt kondisional per-arsitektur (fix build #8)
-- reclaim `.git`/`.repo` setelah sync
-- blobs diambil dari GitHub Release (bukan disimpan di git)
-
-## Perkiraan error berikutnya (siap diantisipasi)
-Berdasarkan blog Actinis (peta jalan lengkap setelah patch host), dinding berikutnya:
-1. **Cronet x86 SIMD** — flag `-msse3`, `-mavx*`, `-maes`, `-mpclmul`, `-mf16c` bocor
-   ke host aarch64. Fix blog = shim `clang-real` (bash) yang membuang flag `-m*` x86.
-   ⚠ Harus **pure bash** (tanpa `dirname`/`basename`) + `exec -a "$0"`.
-2. **`llvm-objdump`/`llvm-nm` x86 hardcoded** saat Cronet minta — blog pakai wrapper
-   script di dir bin x86 yang mengeksekusi tool arm64 asli (bukan copy biner: ada
-   ketergantungan loader musl relatif ke tree asal).
-3. **Rust sysroot double vision** — belum ditangani (0009 dibuang karena tak
-   terbukti); patch 0003 + drop Rust saja dulu. Kalau `E0464`/`E0460`/`E0152`
-   benar-benar muncul di run #19, baru tambal berbasis bukti log.
-4. **JVM heap (metalava/SystemUI)** — sudah diantisipasi patch 0014 (`-Xmx8g`).
-5. **VINTF (vendor API 35 vs system 36)** — sudah diverifikasi aman:
-   - matrix vendor mendeklarasikan `system-sdk {35}`; `BOARD_SYSTEMSDK_VERSIONS := 36 35 34`
-     dan `PLATFORM_SYSTEMSDK_VERSIONS` = rentang min..36 → kompatibel.
-   - `checkvintf --check-compat` dijalankan dengan
-     `--property ro.product.first_api_level=36` (`build/make/core/Makefile:5500`).
-   - `init` menghitung `ro.vendor.api_level` = min(level produk, `ro.board.api_level`)
-     = min(202404, 202404) = **202404** (A15) — sama seperti perangkat stok
-     (`system/core/init/property_service.cpp:1108`, tanpa `LOG(FATAL)`).
-   - `TARGET_BOARD_API_LEVEL` ternyata **tidak dipakai sama sekali** di build/make A16
-     (variabel legacy) → nilainya harmless.
-   - `PRODUCT_SHIPPING_VENDOR_API_LEVEL` **tidak** perlu di-override.
-6. **Missing separator** — sudah teratasi (BOM, lihat di atas).
+## Panduan flash
+Lihat [`docs/FLASHING.md`](FLASHING.md). Hanya flash: `system.img`, `system_ext.img`, `product.img`, `vbmeta*.img` dengan `--disable-verity --disable-verification`. Jangan flash `super.img` atau `vendor*.img`.
 
 ## Catatan penting
-- HP JANGAN di-reboot sampai ROM siap flash
+- HP **JANGAN** di-reboot sampai ROM siap flash
 - Semua operasi device = read-only
-- super.img (9 GB) = backup lokal saja (header gDla, tidak bisa lpunpack)
-  → **backup partisi `system_a` mentah** wajib diambil sebelum flash (lihat
-  [`docs/FLASHING.md`](FLASHING.md) §5.2)
-- vendor/bin: 100% 64-bit (0 file 32-bit) → arm64-only sudah benar
-- Kernel backup HDD **IDENTIK** dengan kernel proyek (verified SHA256)
-- Prosedur flash terbukti (dari era GSI):
-  `adb reboot fastboot` → `fastboot flash system <img>` → `fastboot erase userdata` → `fastboot reboot`
-- **Hanya** `system`, `system_ext`, `product`, `vbmeta` yang di-flash.
-  `boot`/`vendor_boot`/`init_boot`/`dtbo`/`vendor`/`odm`/`*_dlkm` **tetap stok**
-  (`vendor_boot` MTK tidak bisa direproduksi `mkbootimg` AOSP; blob vendor kehilangan
-  konteks SELinux). **Jangan flash `super.img`** — isinya `vendor.img` hasil rebuild
-  yang tidak valid. Detail + rollback: [`docs/FLASHING.md`](FLASHING.md).
-
-## Update terkini (2026-10-23)
-| Item | Status |
-|---|---|
-| Vendor APK di Soong | Pindah ke `prebuilt_any` (vendor/infinix/X6840/Android.bp) dengan `sub_dir` biar dipasang persis ke vendor/app/ & vendor/overlay/ (hindari PRODUCT_COPY_FILES yang ditolak build/make). |
-| BoardConfig mkbootimg | Tambah `--kernel_offset` dan `--ramdisk_offset` ke BOARD_MKBOOTIMG_ARGS. |
-| CI Rust arm64 | Fix symlink librustc_driver ke prebuilts/rust/.../lib64/ tanpa bergantung cd (langsung link per-file + validasi). |
-| Build terkini | run #26 (4ff4b26) - in_progress, setelah fix step Rust. |
-
-## Update 2026-10-23 (run 36-42)
-| Item | Status |
-|---|---|
-| Bootstrap blueprint | Error: prebuilts/build-tools/Android.bp:100:9 expected } found Ident + broken symlinks hardware/qcom/*/Android.bp -> gps/os_pickup.bp |
-| Fix | scripts/fix-source-tree.sh: python fix missing brace + replace broken qcom symlinks with stubs |
-| Rust toolchain | Fixed: root install.sh --components, rust-src non-fatal, lib64 symlink hardened |
-| mtk.te | Fixed: vendor_internal_prop macro, app_api_service, removed neverallow violations |
-| BOARD_MAIN_SIZE | Fixed: 9659482112 (super - 4MiB) |
-| Partition sizes | Unset dynamic partition sizes (build computes minimum) |
-| Build terkini | run #42 (sha 039b966) - in_progress |
-
-## Revisi perbaikan (2026-10-26)
-| Item | Perubahan |
-|---|---|
-| `fix-source-tree.sh` | + nonaktifkan `VibratorCL` (Qualcomm-only), regex V2.1 diperkuat, cek referensi `PRODUCT_PACKAGES`, symlink rusak generik (`maxdepth 4`) |
-| Step Rust (`build.yml`) | komponen disaring dari berkas `components` (tidak berhenti bila nama tak ada), fallback "salin mentah" dihapus (diganti `exit 1`), `rust-src` dipasang dari artefak terpisah (opsional) |
-| `fetch-blobs.sh` | verifikasi `SHA256SUMS` bila tersedia, cek semua sumber `proprietary/` yang dirujuk `vendor.mk`/`Android.bp` ada |
-| `check-text-encoding.py` | + `.md`, + karakter kontrol (VT/BS), + `docs scripts .github README.md` |
-| `FLASHING.md` | backup 4 partisi (system, system_ext, product, vbmeta), rollback lengkap, klaim slot `_b` dikoreksi, referensi file yang tidak ada dihapus |
-| Encoding | `STATUS.md`: BOM dibuang; `\v` dan `\b` PowerShell yang bocor (VT/BS) dipulihkan menjadi `v`/`b` |
+- Hanya flash: `system`, `system_ext`, `product`, `vbmeta`
+- `boot`/`vendor_boot`/`init_boot`/`dtbo`/`vendor`/`odm`/`*_dlkm` **tetap stok**
