@@ -1,6 +1,5 @@
 #!/bin/bash
-# Nonaktifkan/perbaiki bagian source tree PixelOS sixteen yang merusak analisis
-# Soong untuk perangkat ini (MediaTek: tanpa HAL Qualcomm, tanpa Lineage SDK).
+# Fix broken PixelOS sixteen source tree files before build
 # Jalankan dari root source tree (~/android/pixelos). Idempoten.
 
 disable_bp() {
@@ -13,16 +12,16 @@ disable_bp() {
     fi
 }
 
-echo ">>> Fixing broken hardware/ symlinks (generic)..."
+echo ">>> Fixing broken hardware/qcom symlinks (generic)..."
 # Symlink Android.bp yang rusak (mis. hardware/qcom/*/Android.bp -> gps/os_pickup.bp)
 # diganti stub supaya Soong tidak berhenti.
-find hardware -maxdepth 4 -name Android.bp -xtype l -print 2>/dev/null | while read -r bp; do
+find hardware/qcom -name Android.bp -xtype l -print 2>/dev/null | while read -r bp; do
     echo "  Removing broken symlink: $bp"
     rm -f "$bp"
     echo "// Stub to satisfy soong (original symlink was broken)" > "$bp"
 done
 
-echo ">>> Disabling ALL Qualcomm HAL modules (MediaTek tidak butuh HAL Qualcomm)..."
+echo ">>> Disabling all Qualcomm HAL modules (MediaTek tidak butuh HAL Qualcomm)..."
 # Semua Android.bp di hardware/qcom/ dan hardware/qcom-caf/ untuk Qualcomm-only HAL.
 # Perangkat MediaTek MT6768 tidak butuh modul Qualcomm.
 find hardware/qcom -name Android.bp -type f 2>/dev/null | while read -r bp; do
