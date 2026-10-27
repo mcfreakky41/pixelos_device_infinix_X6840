@@ -61,6 +61,12 @@ echo ">>> Disabling Qualcomm Vibrator aidl (depends on VibratorCL)..."
 # parent aidl/Android.bp references vendor.qti.hardware.vibratorCL.impl
 disable_bp vendor/qcom/opensource/vibrator/aidl/Android.bp "depends on VibratorCL (disabled)"
 
+echo ">>> Disabling Qualcomm vibrator effect + VibratorOL (define/use Common_CFlags)..."
+# effect/Android.bp defines Common_CFlags; VibratorOL/Android.bp uses it.
+# Both are Qualcomm-only, not needed for MediaTek MT6768.
+disable_bp vendor/qcom/opensource/vibrator/effect/Android.bp "Qualcomm-only, defines Common_CFlags"
+disable_bp vendor/qcom/opensource/vibrator/aidl/VibratorOL/Android.bp "Qualcomm-only, uses Common_CFlags"
+
 echo ">>> Cek referensi ke modul yang dinonaktifkan (PRODUCT_PACKAGES dll.)..."
 # Kalau makefile produk masih memasukkan modul yang sudah dinonaktifkan, Kati/Ninja
 # akan gagal belakangan. Hanya melapor, tidak mengubah apa pun.
