@@ -149,7 +149,6 @@ BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true
 # DEVICE_MANIFEST_FILE) supaya isinya identik dengan /vendor stok.
 # Flag ini escape hatch resmi AOSP (board_config.mk:187).
 BUILD_BROKEN_VINTF_PRODUCT_COPY_FILES := true
-BUILD_BROKEN_PREBUILT_PRODUCT_COPY_FILES := true
 
 # CATATAN: APK di PRODUCT_COPY_FILES TIDAK punya escape hatch
 # (core/Makefile:101-104, error tanpa syarat). 15 APK vendor (app/overlay)
