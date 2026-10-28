@@ -485,7 +485,7 @@ jobs:
           cd ~/android/pixelos
           # PixelOS sixteen butuh JDK 8 untuk host tools (dx, apksig) di
           # prebuilts/jdk/jdk8/linux-arm64. Hanya ada linux-x86 di manifest.
-          # Unduh dari Adoptium Temurin 8.
+          # Unduh JDK 8 arm64 dari Adoptium Temurin.
           JDK8_DIR="prebuilts/jdk/jdk8/linux-arm64"
           if [ -x "$JDK8_DIR/bin/java" ]; then
             echo ">>> JDK 8 arm64 sudah ada, lewati"
@@ -493,13 +493,27 @@ jobs:
             exit 0
           fi
           mkdir -p "$JDK8_DIR"
-          echo ">>> unduh JDK 8 arm64 dari Adoptium Temurin"
-          curl -fL --retry 3 -o /tmp/jdk8.tar.gz \
-            "https://github.com/adoptium/temurin8-binaries/releases/download/jdk-8u412%2B8/OpenJDK8U-jdk_aarch64_linux_hotspot_8u412b8.tar.gz" \
-            || curl -fL --retry 3 -o /tmp/jdk8.tar.gz \
-            "https://github.com/adoptium/temurin-binaries/releases/download/jdk-8u412%2B8/OpenJDK8U-jdk_aarch64_linux_hotspot_8u412b8.tar.gz"
-          tar -xzf /tmp/jdk8.tar.gz -C "$JDK8_DIR" --strip-components=1
-          rm -f /tmp/jdk8.tar.gz
+          echo ">>> Unduh JDK 8 arm64 dari Adoptium API"
+          # Ambil download URL dari Adoptium API
+          JDK8_URL=$(curl -sL --retry 3 \
+            "https://api.adoptium.net/v3/binary/latest/8/ga/linux/aarch64/jdk/hotspot/normal/eclipse" \
+            | grep -o '"download_url":"[^"]*"' | head -1 | cut -d'"' -f4)
+          if [ -z "$JDK8_URL" ]; then
+            echo "!! Gagal dapatkan URL download JDK 8 dari Adoptium API"
+            exit 1
+          fi
+          echo ">>> URL: $JDK8_URL"
+          curl -fL --retry 3 -o /tmp/jdk8.tar.gz "$JDK8_URL"
+          mkdir -p /tmp/jdk8extract
+          tar -xzf /tmp/jdk8.tar.gz -C /tmp/jdk8extract
+          # Cari direktori JDK yang diekstrak
+          JDK8_SRC=$(find /tmp/jdk8extract -maxdepth 1 -name "jdk*" -type d | head -1)
+          if [ -z "$JDK8_SRC" ]; then
+            echo "!! Gagal temukan direktori JDK di hasil ekstraksi"
+            exit 1
+          fi
+          cp -a "$JDK8_SRC/." "$JDK8_DIR/"
+          rm -rf /tmp/jdk8.tar.gz /tmp/jdk8extract
           echo ">>> JDK 8 arm64 versi:"
           "$JDK8_DIR/bin/java" -version 2>&1 | head -3
 
