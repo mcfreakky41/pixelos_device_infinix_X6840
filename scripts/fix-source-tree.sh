@@ -33,6 +33,11 @@ find vendor/qcom -name Android.bp -type f 2>/dev/null | while read -r bp; do
     disable_bp "$bp" "Qualcomm-only, not needed for MediaTek"
 done
 
+echo ">>> Disabling all hardware/qcom-caf Android.bp files (Qualcomm-only)..."
+find hardware/qcom-caf -name Android.bp -type f 2>/dev/null | while read -r bp; do
+    disable_bp "$bp" "Qualcomm-only HAL, tidak dipakai di MediaTek"
+done
+
 echo ">>> Fixing livedisplay undefined module references..."
 # Log Soong: "depends on undefined module" (BUKAN duplikat). hardware/lineage/
 # livedisplay (HIDL) butuh vendor.lineage.livedisplay@2.0, sedangkan repo
