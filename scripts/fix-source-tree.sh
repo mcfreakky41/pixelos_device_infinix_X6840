@@ -28,6 +28,11 @@ find hardware/qcom -name Android.bp -type f 2>/dev/null | while read -r bp; do
     disable_bp "$bp" "Qualcomm HAL, tidak dipakai di MediaTek"
 done
 
+echo ">>> Disabling all vendor/qcom Android.bp files (Qualcomm-only)..."
+find vendor/qcom -name Android.bp -type f 2>/dev/null | while read -r bp; do
+    disable_bp "$bp" "Qualcomm-only, not needed for MediaTek"
+done
+
 echo ">>> Fixing livedisplay undefined module references..."
 # Log Soong: "depends on undefined module" (BUKAN duplikat). hardware/lineage/
 # livedisplay (HIDL) butuh vendor.lineage.livedisplay@2.0, sedangkan repo
@@ -72,4 +77,4 @@ for name in vendor.qti.hardware.vibratorCL SimpleSettingsConfig 'vendor.lineage.
     fi
 done
 
-echo ">>> Disabling Qualcomm vibratorCL Android.bp..."\ndisable_bp vendor/qcom/opensource/vibrator/aidl/VibratorCL/Android.bp "Qualcomm-only vibrator, not needed for MediaTek"\necho ">>> Source tree fixes applied."
+echo ">>> Source tree fixes applied."
