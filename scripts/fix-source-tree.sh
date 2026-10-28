@@ -67,22 +67,28 @@ if [ -f packages/apps/SimpleSettingsConfig/Android.bp ]; then
     echo "  Disabled: packages/apps/SimpleSettingsConfig/Android.bp"
 fi
 
-echo ">>> Fixing vendor/aosp/build/soong/Android.bp Make variables in .bp cmd fields..."
+echo ">>> Fixing vendor/aosp/build/soong/Android.bp Make variables and kernel module dependencies..."
 # vendor/aosp/build/soong/Android.bp uses Make variables $(PATH_OVERRIDE_SOONG) and
 # $(KERNEL_BUILD_OUT_PREFIX) in .bp cmd: fields, which Soong does NOT expand.
-# These are kernel include generation modules; we use TARGET_PREBUILT_KERNEL
-# (no public kernel source), so they are not needed.
+# Also, kernel header modules reference each other and break when we use
+# TARGET_PREBUILT_KERNEL (no public kernel source).
+# Since this is a MediaTek device with prebuilt kernel, remove ALL kernel-related
+# modules from this file.
 if [ -f vendor/aosp/build/soong/Android.bp ]; then
     python3 - vendor/aosp/build/soong/Android.bp << 'PYEOF'
 import sys, re
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
-# Remove kernel include modules that use Make variables in cmd: fields.
-# These modules are not needed when using TARGET_PREBUILT_KERNEL.
-for modname in ["generated_kernel_includes", "prebuilt_kernel_includes"]:
-    # Match any Soong module block with this name
-    pattern = r'\n\w+\s*\{\s*\n\s*name:\s*"' + modname + r'"[^}]*\n\}'
-    s = re.sub(pattern, '', s, flags=re.DOTALL)
+# Remove all kernel-related Soong module blocks (generated_kernel_*, prebuilt_kernel_*, qti_kernel_*)
+# These are not needed when using TARGET_PREBUILT_KERNEL.
+# Match any module block where name contains "kernel"
+pattern = r'\n(\w+)\s*\{\s*\n\s*name:\s*"[^"]*kernel[^"]*"[^}]*\n\}'
+removed = re.findall(pattern, s, flags=re.DOTALL)
+s = re.sub(pattern, '', s, flags=re.DOTALL)
+if removed:
+    print("  Removed kernel modules:", ", ".join(removed))
+else:
+    print("  No kernel modules found to remove")
 open(p, "w", encoding="utf-8").write(s)
 print("  Fixed:", p)
 PYEOF
