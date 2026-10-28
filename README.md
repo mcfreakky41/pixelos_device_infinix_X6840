@@ -51,7 +51,7 @@ Build berjalan di **GitHub Actions** di runner `ubuntu-24.04-arm` (host ARM64, 1
 gh workflow run build.yml -R mcfreakky41/pixelos_device_infinix_X6840
 ```
 
-atau lewat tab **Actions**  *build*  **Run workflow**.
+atau lewat tab **Actions** → *build* → **Run workflow**.
 
 ### Lokal
 
