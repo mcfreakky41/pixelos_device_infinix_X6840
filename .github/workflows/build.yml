@@ -480,6 +480,29 @@ jobs:
           fi
           echo ">>> OK: rust host arm64 siap"
 
+      - name: Drop ARM64 JDK 8 (host)
+        run: |
+          cd ~/android/pixelos
+          # PixelOS sixteen butuh JDK 8 untuk host tools (dx, apksig) di
+          # prebuilts/jdk/jdk8/linux-arm64. Hanya ada linux-x86 di manifest.
+          # Unduh dari Adoptium Temurin 8.
+          JDK8_DIR="prebuilts/jdk/jdk8/linux-arm64"
+          if [ -x "$JDK8_DIR/bin/java" ]; then
+            echo ">>> JDK 8 arm64 sudah ada, lewati"
+            "$JDK8_DIR/bin/java" -version 2>&1 | head -1 || true
+            exit 0
+          fi
+          mkdir -p "$JDK8_DIR"
+          echo ">>> unduh JDK 8 arm64 dari Adoptium Temurin"
+          curl -fL --retry 3 -o /tmp/jdk8.tar.gz \
+            "https://github.com/adoptium/temurin8-binaries/releases/download/jdk-8u412%2B8/OpenJDK8U-jdk_aarch64_linux_hotspot_8u412b8.tar.gz" \
+            || curl -fL --retry 3 -o /tmp/jdk8.tar.gz \
+            "https://github.com/adoptium/temurin-binaries/releases/download/jdk-8u412%2B8/OpenJDK8U-jdk_aarch64_linux_hotspot_8u412b8.tar.gz"
+          tar -xzf /tmp/jdk8.tar.gz -C "$JDK8_DIR" --strip-components=1
+          rm -f /tmp/jdk8.tar.gz
+          echo ">>> JDK 8 arm64 versi:"
+          "$JDK8_DIR/bin/java" -version 2>&1 | head -3
+
       - name: Apply ARM64 host patches (build system)
         run: |
           cd ~/android/pixelos
