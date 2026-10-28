@@ -485,7 +485,7 @@ jobs:
           cd ~/android/pixelos
           # PixelOS sixteen butuh JDK 8 untuk host tools (dx, apksig) di
           # prebuilts/jdk/jdk8/linux-arm64. Hanya ada linux-x86 di manifest.
-          # Unduh JDK 8 arm64 dari Adoptium Temurin.
+          # Unduh JDK 8 arm64 dari Adoptium Temurin releases.
           JDK8_DIR="prebuilts/jdk/jdk8/linux-arm64"
           if [ -x "$JDK8_DIR/bin/java" ]; then
             echo ">>> JDK 8 arm64 sudah ada, lewati"
@@ -493,17 +493,9 @@ jobs:
             exit 0
           fi
           mkdir -p "$JDK8_DIR"
-          echo ">>> Unduh JDK 8 arm64 dari Adoptium API"
-          # Ambil download URL dari Adoptium API
-          JDK8_URL=$(curl -sL --retry 3 \
-            "https://api.adoptium.net/v3/binary/latest/8/ga/linux/aarch64/jdk/hotspot/normal/eclipse" \
-            | grep -o '"download_url":"[^"]*"' | head -1 | cut -d'"' -f4)
-          if [ -z "$JDK8_URL" ]; then
-            echo "!! Gagal dapatkan URL download JDK 8 dari Adoptium API"
-            exit 1
-          fi
-          echo ">>> URL: $JDK8_URL"
-          curl -fL --retry 3 -o /tmp/jdk8.tar.gz "$JDK8_URL"
+          echo ">>> Unduh JDK 8 arm64 dari Adoptium Temurin"
+          curl -fL --retry 3 -o /tmp/jdk8.tar.gz \
+            "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u504-b01/OpenJDK8U-jdk_aarch64_linux_hotspot_8u504b01.tar.gz"
           mkdir -p /tmp/jdk8extract
           tar -xzf /tmp/jdk8.tar.gz -C /tmp/jdk8extract
           # Cari direktori JDK yang diekstrak
