@@ -1,51 +1,47 @@
 #!/bin/bash
 # Fix broken PixelOS sixteen source tree files before build
 # Jalankan dari root source tree (~/android/pixelos). Idempoten.
-
-disable_bp() {
-    # $1 = path Android.bp, $2 = alasan singkat
-    if [ -f "$1" ]; then
-        mv "$1" "$1.disabled"
-        echo "  Disabled: $1  ($2)"
-    else
-        echo "  (lewati, tidak ada / sudah nonaktif: $1)"
-    fi
-}
+# Perangkat Infinix X6840 (MediaTek MT6768) tidak butuh ANY Qualcomm HAL.
+# Semua direktori Qualcomm dihapus sepenuhnya supaya Soong tidak menemukan
+# referensi namespace Qualcomm yang rusak.
 
 echo ">>> Fixing broken hardware/qcom symlinks (generic)..."
-# Symlink Android.bp yang rusak (mis. hardware/qcom/*/Android.bp -> gps/os_pickup.bp)
-# diganti stub supaya Soong tidak berhenti.
+# Symlink Android.bp yang rusak diganti stub supaya Soong tidak berhenti.
 find hardware/qcom -name Android.bp -xtype l -print 2>/dev/null | while read -r bp; do
     echo "  Removing broken symlink: $bp"
     rm -f "$bp"
     echo "// Stub to satisfy soong (original symlink was broken)" > "$bp"
 done
 
-echo ">>> Disabling all Qualcomm HAL modules (MediaTek tidak butuh HAL Qualcomm)..."
-# Semua Android.bp di hardware/qcom/ dan hardware/qcom-caf/ untuk Qualcomm-only HAL.
-# Perangkat MediaTek MT6768 tidak butuh modul Qualcomm.
-find hardware/qcom -name Android.bp -type f 2>/dev/null | while read -r bp; do
-    disable_bp "$bp" "Qualcomm HAL, tidak dipakai di MediaTek"
-done
+echo ">>> Removing ALL hardware/qcom/ directory (MediaTek, tidak butuh Qualcomm)..."
+rm -rf hardware/qcom 2>/dev/null || true
+echo "  hardware/qcom removed (if existed)"
 
-echo ">>> Disabling all vendor/qcom Android.bp files (Qualcomm-only)..."
-find vendor/qcom -name Android.bp -type f 2>/dev/null | while read -r bp; do
-    disable_bp "$bp" "Qualcomm-only, not needed for MediaTek"
-done
+echo ">>> Removing ALL hardware/qcom-caf/ directory (MediaTek, tidak butuh Qualcomm)..."
+rm -rf hardware/qcom-caf 2>/dev/null || true
+echo "  hardware/qcom-caf removed (if existed)"
 
-echo ">>> Disabling all hardware/qcom-caf Android.bp files (Qualcomm-only)..."
-find hardware/qcom-caf -name Android.bp -type f 2>/dev/null | while read -r bp; do
-    disable_bp "$bp" "Qualcomm-only HAL, tidak dipakai di MediaTek"
-done
+echo ">>> Removing ALL vendor/qcom/ directory (MediaTek, tidak butuh Qualcomm)..."
+rm -rf vendor/qcom 2>/dev/null || true
+echo "  vendor/qcom removed (if existed)"
 
 echo ">>> Fixing livedisplay undefined module references..."
 # Log Soong: "depends on undefined module" (BUKAN duplikat). hardware/lineage/
 # livedisplay (HIDL) butuh vendor.lineage.livedisplay@2.0, sedangkan repo
 # interfaces (AIDL) hanya menyediakan vendor.lineage.livedisplay (V1/V2).
 # Perangkat ini tidak punya HAL LiveDisplay, jadi implementasi HAL dinonaktifkan.
-disable_bp hardware/lineage/livedisplay/sysfs/Android.bp "HAL HIDL livedisplay tidak dipakai"
-disable_bp hardware/lineage/livedisplay/sdm/Android.bp   "HAL HIDL livedisplay tidak dipakai"
-disable_bp hardware/lineage/livedisplay/legacymm/Android.bp "HAL HIDL livedisplay tidak dipakai"
+if [ -f hardware/lineage/livedisplay/sysfs/Android.bp ]; then
+    mv hardware/lineage/livedisplay/sysfs/Android.bp hardware/lineage/livedisplay/sysfs/Android.bp.disabled
+    echo "  Disabled: hardware/lineage/livedisplay/sysfs/Android.bp"
+fi
+if [ -f hardware/lineage/livedisplay/sdm/Android.bp ]; then
+    mv hardware/lineage/livedisplay/sdm/Android.bp hardware/lineage/livedisplay/sdm/Android.bp.disabled
+    echo "  Disabled: hardware/lineage/livedisplay/sdm/Android.bp"
+fi
+if [ -f hardware/lineage/livedisplay/legacymm/Android.bp ]; then
+    mv hardware/lineage/livedisplay/legacymm/Android.bp hardware/lineage/livedisplay/legacymm/Android.bp.disabled
+    echo "  Disabled: hardware/lineage/livedisplay/legacymm/Android.bp"
+fi
 
 # frameworks/base menyebut vendor.lineage.livedisplay-V2.0-java dan
 # vendor.lineage.livedisplay-V2.1-java (HIDL); yang ada di tree hanyalah
@@ -66,20 +62,9 @@ fi
 
 echo ">>> Fixing SimpleSettingsConfig undefined dependency..."
 # Bergantung pada org.lineageos.platform.internal (Lineage SDK) yang tidak ada di tree ini.
-disable_bp packages/apps/SimpleSettingsConfig/Android.bp "butuh org.lineageos.platform.internal"
-
-echo ">>> Cek referensi ke modul yang dinonaktifkan (PRODUCT_PACKAGES dll.)..."
-# Kalau makefile produk masih memasukkan modul yang sudah dinonaktifkan, Kati/Ninja
-# akan gagal belakangan. Hanya melapor, tidak mengubah apa pun.
-for name in vendor.qti.hardware.vibratorCL SimpleSettingsConfig 'vendor.lineage.livedisplay@2.0-service' vendor.qti.hardware.display.composer-service; do
-    hits=$(grep -rIl --include='*.mk' --include='Android.mk' --include='Android.bp' --include='*.xml' \
-              -e "$name" vendor device build packages hardware 2>/dev/null | head -5)
-    if [ -n "$hits" ]; then
-        echo "  PERINGATAN: '$name' masih direferensikan di:"
-        echo "$hits" | sed 's/^/      /'
-    else
-        echo "  OK: tidak ada referensi ke '$name'"
-    fi
-done
+if [ -f packages/apps/SimpleSettingsConfig/Android.bp ]; then
+    mv packages/apps/SimpleSettingsConfig/Android.bp packages/apps/SimpleSettingsConfig/Android.bp.disabled
+    echo "  Disabled: packages/apps/SimpleSettingsConfig/Android.bp"
+fi
 
 echo ">>> Source tree fixes applied."
