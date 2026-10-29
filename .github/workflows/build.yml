@@ -486,9 +486,11 @@ jobs:
           # PixelOS sixteen butuh JDK 8 untuk host tools (dx, apksig) di
           # prebuilts/jdk/jdk8/linux-arm64. Hanya ada linux-x86 di manifest.
           # Unduh JDK 8 arm64 dari Adoptium Temurin releases.
+          # Build system expects JARs at: jre/lib/jce.jar and jre/lib/rt.jar
+          # Adoptium JDK 8 ARM64 puts JARs in lib/ directly, so create jre/lib symlink.
           JDK8_DIR="prebuilts/jdk/jdk8/linux-arm64"
-          if [ -x "$JDK8_DIR/bin/java" ]; then
-            echo ">>> JDK 8 arm64 sudah ada, lewati"
+          if [ -x "$JDK8_DIR/bin/java" ] && [ -f "$JDK8_DIR/jre/lib/rt.jar" ]; then
+            echo ">>> JDK 8 arm64 sudah ada dengan struktur benar, lewati"
             "$JDK8_DIR/bin/java" -version 2>&1 | head -1 || true
             exit 0
           fi
@@ -504,10 +506,23 @@ jobs:
             echo "!! Gagal temukan direktori JDK di hasil ekstraksi"
             exit 1
           fi
+          # Copy JDK content first
           cp -a "$JDK8_SRC/." "$JDK8_DIR/"
+          # Create jre/lib structure expected by build system
+          mkdir -p "$JDK8_DIR/jre/lib"
+          # Copy/link JAR files to jre/lib where build expects them
+          for jar in rt.jar jce.jar jsse.jar charsets.jar; do
+            if [ -f "$JDK8_DIR/lib/$jar" ]; then
+              cp "$JDK8_DIR/lib/$jar" "$JDK8_DIR/jre/lib/"
+            fi
+          done
+          # Also copy the entire lib to jre if needed
+          cp -r "$JDK8_DIR/lib/"* "$JDK8_DIR/jre/lib/" 2>/dev/null || true
           rm -rf /tmp/jdk8.tar.gz /tmp/jdk8extract
           echo ">>> JDK 8 arm64 versi:"
           "$JDK8_DIR/bin/java" -version 2>&1 | head -3
+          echo ">>> Verifikasi jre/lib:"
+          ls -la "$JDK8_DIR/jre/lib/" | head -10
 
       - name: Apply ARM64 host patches (build system)
         run: |
