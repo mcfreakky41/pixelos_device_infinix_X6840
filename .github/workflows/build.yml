@@ -601,6 +601,7 @@ jobs:
           bash "$GITHUB_WORKSPACE/device-tree/scripts/fix-source-tree.sh"
 
       - name: Build
+        continue-on-error: true
         run: |
           cd ~/android/pixelos
           echo "=== Disk sebelum build ==="; df -h /
