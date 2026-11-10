@@ -78,7 +78,7 @@ Build berjalan di **GitHub Actions** pada runner `ubuntu-24.04-arm`:
 gh workflow run build.yml -R mcfreakky41/pixelos_device_infinix_X6840
 ```
 
-> **💾 Catatan Disk:** Workflow otomatis membebaskan disk sebelum sync, membuang project x86/emulator yang tidak dipakai build ARM64, dan menghapus `.repo` setelah sync. Ini mencegah error `No space left on device` pada runner 145 GB. Monitoring di [docs/STATUS.md](docs/STATUS.md).
+> **💾 Catatan Disk:** Workflow otomatis membebaskan disk sebelum sync, membuang project x86/emulator/test yang tidak dipakai build ARM64, menghapus `.repo` setelah sync, dan membangun **image-only** (`systemimage systemextimage productimage vbmetaimage`) — bukan `bacon`. Ini mencegah error `No space left on device` pada runner 145 GB. Monitoring di [docs/STATUS.md](docs/STATUS.md).
 
 Atau lewat UI:
 1. Buka tab **Actions** → pilih **build.yml**
@@ -99,10 +99,10 @@ bash device/infinix/X6840/scripts/apply-arm64-host.sh
 # 3. Fetch vendor blobs
 bash device/infinix/X6840/scripts/fetch-blobs.sh
 
-# 4. Build
+# 4. Build (image-only, cukup untuk flashing system/system_ext/product/vbmeta)
 source build/envsetup.sh
 lunch pixelos_X6840 bp2a userdebug
-mka bacon
+mka systemimage systemextimage productimage vbmetaimage -j$(nproc --all)
 ```
 
 ---
