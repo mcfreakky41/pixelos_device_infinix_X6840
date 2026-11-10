@@ -200,6 +200,34 @@ elif [ -f "$VBP.disabled" ]; then
 fi
 
 # ============================================================
+# 4.5 framework test module (csuite_test) yang tidak dipakai build image
+#     Perangkat memakai kernel prebuilt + image-only build, sehingga blok
+#     test framework yang memakai module type custom "csuite_test" tidak
+#     perlu ada. Patch blok-nya spesifik, bukan men-disable file.
+# ============================================================
+for F in \
+    frameworks/base/libs/WindowManager/Shell/tests/flicker/pip/Android.bp \
+    art/test/Android.bp; do
+    if [ -f "$F" ]; then
+        python3 - "$F" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+before = s
+s2 = re.sub(r'(?ms)^csuite_test \{\n.*?\n\}\n', '', s)
+if s2 != before:
+    open(p, "w", encoding="utf-8").write(s2)
+    print(f"  OK  : blok csuite_test dihapus: {p}")
+else:
+    print(f"  OK  : tidak ada blok csuite_test: {p}")
+PYEOF
+        [ $? -eq 0 ] || warn "gagal patch test module: $F"
+    else
+        ok "tidak ada: $F (test module tidak ada di tree ini)"
+    fi
+done
+
+# ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
 check_absent() { # desc, path
