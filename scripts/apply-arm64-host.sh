@@ -414,7 +414,8 @@ import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
 if "arm64-host" in s:
-    print("    SKIP: clang/config.mk sudah dipatch"); sys.exit(0)
+    print("    SKIP: clang/config.mk sudah dipatch")
+    sys.exit(0)  # exit 0 -> tidak error, tapi script bash harus cek return code
 old = '''## Clang configurations.
 
 LLVM_READOBJ := $(LLVM_PREBUILTS_BASE)/$(BUILD_OS)-x86/$(LLVM_PREBUILTS_VERSION)/bin/llvm-readobj

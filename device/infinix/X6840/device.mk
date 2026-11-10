@@ -64,6 +64,10 @@ PRODUCT_BUILD_SUPER_PARTITION := true
 # ============================================================
 # Filesystem / fstab
 # ============================================================
+# Note: fstab.mt6768 must be copied from device tree (not vendor blobs)
+# to preserve the fixed AVB flags. Vendor blobs version would overwrite
+# with the stock version lacking custom fixes.
+# See docs/FLASHING.md section 3 for why vendor blobs must stay stock.
 PRODUCT_COPY_FILES += \
     $(DEVICE_PATH)/rootdir/etc/fstab.mt6768:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.mt6768
 
@@ -75,6 +79,9 @@ AB_OTA_UPDATER := true
 # ============================================================
 # Inherit vendor blobs
 # ============================================================
+# Note: fstab.mt6768 is already copied from device tree (line 71).
+# Vendor blobs would provide duplicate and stale version.
+# See docs/FLASHING.md section 3.
 PRODUCT_COPY_FILES += \
     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/../../vendor/infinix/X6840/proprietary,vendor)
 

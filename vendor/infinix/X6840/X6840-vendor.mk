@@ -398,7 +398,9 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/etc/fs_config_dirs:$(TARGET_COPY_OUT_VENDOR)/etc/fs_config_dirs \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/etc/fs_config_files:$(TARGET_COPY_OUT_VENDOR)/etc/fs_config_files \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/etc/fstab.enableswap:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.enableswap \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/etc/fstab.mt6768:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.mt6768 \
+    # Note: fstab.mt6768 is provided by device tree to preserve custom AVB flags.
+    # DO NOT copy from vendor blobs - it would overwrite with stock version lacking fixes.
+    # See docs/FLASHING.md section 3.
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/etc/fstb.cfg:$(TARGET_COPY_OUT_VENDOR)/etc/fstb.cfg \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/etc/gnss/agps_profiles_conf2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/gnss/agps_profiles_conf2.xml \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/etc/gnss/carrier/agps_profiles_conf2_carrier_ATnT_Mexico.xml:$(TARGET_COPY_OUT_VENDOR)/etc/gnss/carrier/agps_profiles_conf2_carrier_ATnT_Mexico.xml \
