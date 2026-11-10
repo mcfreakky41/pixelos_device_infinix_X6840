@@ -44,10 +44,12 @@ PRODUCT_SYSTEM_PROPERTIES += \
 # ============================================================
 # Telephony (DSDS + VoLTE, MTK IMS)
 # ============================================================
-PRODUCT_SYSTEM_PROPERTIES += \
+PRODUCT_VENDOR_PROPERTIES += \
     persist.vendor.radio.msimmode=dsds \
-    ro.telephony.default_network=9,9 \
     persist.dbg.ims_volte_enable=1
+
+PRODUCT_SYSTEM_PROPERTIES += \
+    ro.telephony.default_network=9,9
 
 # ============================================================
 # Media / codec

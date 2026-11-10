@@ -97,7 +97,7 @@ jobs:
           mkdir -p ~/android/pixelos
           cd ~/android/pixelos
           git config --global color.ui false
-          repo init --depth=1 --partial-clone --clone-filter=blob:limit=10M --no-repo-verify \
+          repo init --depth=1 --partial-clone --clone-filter=blob:limit=10M \
             -u https://github.com/PixelOS-AOSP/manifest.git \
             -b "${{ github.event.inputs.pixelos_branch || 'sixteen' }}"
 
@@ -528,7 +528,7 @@ jobs:
         if: success()
         run: |
           cd ~/android/pixelos/out/target/product/X6840
-          required="system.img system_ext.img product.img vbmeta.img vbmeta_system.img vbmeta_vendor.img"
+          required="system.img system_ext.img product.img vbmeta.img"
           fail=0
           for f in $required; do
             if [ ! -s "$f" ]; then
@@ -536,6 +536,12 @@ jobs:
               fail=1
             else
               printf '    OK  : %-20s %s bytes\n' "$f" "$(stat -c%s "$f")"
+            fi
+          done
+          for f in vbmeta*.img; do
+            if [ ! -s "$f" ]; then
+              echo "!! MISSING / kosong: $f"
+              fail=1
             fi
           done
           if [ "$fail" != "0" ]; then

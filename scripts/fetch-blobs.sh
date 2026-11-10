@@ -63,9 +63,12 @@ fi
 
 # --- pastikan arsip tidak berisi path absolut / keluar direktori ---
 for name in "${ARCHIVES[@]}"; do
-    if tar -tzf "${TMP}/${name}" | grep -qE '^/|(^|/)\.\.(/|$)'; then
+    TARLIST="${TMP}/${name}.list"
+    tar -tzf "${TMP}/${name}" > "$TARLIST"
+    if grep -qE '^/|(^|/)\.\.(/|$)' "$TARLIST"; then
         die "Arsip ${name} berisi path tidak aman (absolut atau '..')"
     fi
+    rm -f "$TARLIST"
 done
 
 # --- bersihkan tujuan supaya file dari ekstraksi lama tidak tertinggal ---
@@ -86,7 +89,10 @@ echo "   Total files: $(find "$DEST" -type f | wc -l)"
 # Validasi kelengkapan blob
 # Sumber kebenaran = X6840-vendor.mk
 # ============================================================
-if [ "${SKIP_BLOB_CHECK:-0}" != "1" ] && [ -f "${VENDOR_DIR}/X6840-vendor.mk" ]; then
+if [ "${SKIP_BLOB_CHECK:-0}" != "1" ]; then
+    if [ ! -f "${VENDOR_DIR}/X6840-vendor.mk" ]; then
+        die "vendor/infinix/X6840/X6840-vendor.mk tidak ditemukan — validasi kelengkupan blob tidak bisa dijalankan."
+    fi
     echo ">> Checking blob completeness"
     mapfile -t refs < <(
         grep -ohE 'proprietary/[^"[:space:]\\:]+' \

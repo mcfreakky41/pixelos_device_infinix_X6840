@@ -132,17 +132,24 @@ khusus atau dump firmware stok sebelum lanjut.
 # Pastikan perangkat boot normal dan terdeteksi
 adb devices
 adb shell getprop ro.boot.slot_suffix      # mis. _a
-adb shell su -c 'ls -l /dev/block/mapper/' # pastikan partisi ada
+adb shell su -c 'ls -l /dev/block/mapper/' # partisi logical ada
+adb shell su -c 'ls -l /dev/block/by-name/' # partisi emmc/raw ada
 
 # Siapkan folder backup
 mkdir -p backup-x6840
 
-# Backup SEMUA partisi yang nanti di-flash (system, system_ext, product,
-# vbmeta, vbmeta_system, vbmeta_vendor) + partisi kunci lain.
-# Ganti _a sesuai slot aktif.
-for p in system system_ext product vbmeta vbmeta_system vbmeta_vendor; do
+# Backup partisi LOGICAL (dynamic) yang di-mount via /dev/block/mapper/
+for p in system system_ext product; do
   echo ">>> backup $p"
   adb shell su -c "dd if=/dev/block/mapper/${p}_a of=/sdcard/backup-${p}.img bs=4M"
+  adb pull "/sdcard/backup-${p}.img" "./backup-x6840/backup-${p}.img"
+  adb shell rm -f "/sdcard/backup-${p}.img"
+done
+
+# Backup partisi yang mounted via /dev/block/by-name/ (vbmeta_* & co)
+for p in vbmeta vbmeta_system vbmeta_vendor; do
+  echo ">>> backup $p"
+  adb shell su -c "dd if=/dev/block/by-name/${p} of=/sdcard/backup-${p}.img bs=4M"
   adb pull "/sdcard/backup-${p}.img" "./backup-x6840/backup-${p}.img"
   adb shell rm -f "/sdcard/backup-${p}.img"
 done
@@ -150,7 +157,12 @@ done
 # Partisi non-logis yang sebaiknya ikut disimpan (bukan untuk di-flash,
 # tetapi penting kalau perlu pemulihan penuh).
 for p in boot init_boot vendor_boot dtbo; do
-  adb shell su -c "dd if=/dev/block/by-name/${p}_a of=/sdcard/backup-${p}.img bs=4M"
+  case "$p" in
+    vendor_boot) DEV="/dev/block/by-name/vendor_boot" ;;
+    *)           DEV="/dev/block/by-name/${p}_a" ;;
+  esac
+  echo ">>> backup $p"
+  adb shell su -c "dd if=$DEV of=/sdcard/backup-${p}.img bs=4M"
   adb pull "/sdcard/backup-${p}.img" "./backup-x6840/backup-${p}.img"
   adb shell rm -f "/sdcard/backup-${p}.img"
 done

@@ -8,9 +8,9 @@
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit_only.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
 
-# Screen resolution (HD+ 720x1640) — must be set before inherit
+# Screen resolution (HD+ 720x1576) — must be set before inherit
 TARGET_SCREEN_WIDTH := 720
-TARGET_SCREEN_HEIGHT := 1640
+TARGET_SCREEN_HEIGHT := 1576
 
 # Inherit some common PixelOS stuff.
 $(call inherit-product, vendor/aosp/config/common_full_phone.mk)
