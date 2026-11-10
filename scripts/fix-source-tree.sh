@@ -155,14 +155,48 @@ PYEOF
 [ $? -eq 0 ] || warn "masih ada permintaan SimpleSettingsConfig"
 
 # ============================================================
-# 4. vendor/aosp/build/soong/Android.bp — kernel modules tidak dipakai
+# 4. vendor/aosp/build/soong/Android.bp — modul kernel headers bermuatan
+#    Make tidak dipakai (perangkat memakai kernel prebuilt). Patch
+#    SPESIFIK: hapus blok blok modul yang bermuatan Make, BUKAN men-disable
+#    seluruh file blueprint.
 # ============================================================
 VBP="vendor/aosp/build/soong/Android.bp"
 if [ -f "$VBP" ]; then
-    mv "$VBP" "$VBP.disabled"
-    ok "disabled: $VBP"
+    python3 - "$VBP" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+targets = [
+    "custom_generator generated_kernel_includes",
+    "custom_generator prebuilt_kernel_includes",
+    "cc_defaults generated_kernel_header_defaults",
+    "cc_defaults prebuilt_kernel_header_defaults",
+    "cc_library_headers generated_kernel_headers",
+    "cc_library_headers qti_kernel_headers",
+    "cc_library_headers prebuilt_kernel_headers",
+]
+removed = []
+for t in targets:
+    kind, name = t.split(None, 1)
+    pat = re.compile(r'(?ms)^' + re.escape(kind) + r' \{\n.*?\n\}\n')
+    m = pat.search(s)
+    if m:
+        s = s[:m.start()] + s[m.end():]
+        removed.append(t)
+if removed:
+    open(p, "w", encoding="utf-8").write(s)
+    print("  OK  : modul bermuatan Make dihapus spesifik:")
+    for r in removed:
+        print("        - " + r)
+elif '$(' in s:
+    print("  WARN: masih ada Make variable di vendor/aosp/build/soong/Android.bp")
+    sys.exit(1)
+else:
+    print("  OK  : tidak ada modul bermuatan Make yang perlu dihapus")
+PYEOF
+    [ $? -eq 0 ] || warn "gagal patch vendor/aosp/build/soong/Android.bp"
 elif [ -f "$VBP.disabled" ]; then
-    ok "sudah disabled: $VBP"
+    ok "sudah dipatch (versi sebelumnya): $VBP.disabled"
 fi
 
 # ============================================================
