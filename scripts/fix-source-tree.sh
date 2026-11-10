@@ -228,6 +228,69 @@ PYEOF
 done
 
 # ============================================================
+# 4.6 Hapus dependensi pada module type yang tidak tersedia
+#     Build image-only tidak menyertakan modul test framework AOSP.
+#     Beberapa modul test (cts_*, mts-*, tradefed_errorprone) masih
+#     merujuk module defaults yang tidak ada pada tree ini. Patchnya:
+#     buang entri deps yang merujuk module tersebut (spesifik), jangan
+#     men-disable seluruh file blueprint.
+# ============================================================
+UNDEF_NAMES="cts_defaults cts_support_defaults mts-target-sdk-version-current tradefed_errorprone_defaults"
+if [ -d packages/modules ]; then
+    find packages/modules -name Android.bp -print0 2>/dev/null | while IFS= read -r -d '' F; do
+        if grep -qE "\"(${UNDEF_NAMES})\"" "$F"; then
+            python3 - "$F" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+UNDEF = ("cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current", "tradefed_errorprone_defaults")
+s = open(p, encoding="utf-8").read()
+out = []
+changed = False
+for ln in s.splitlines(keepends=True):
+    m = re.match(r'^(\s*)"([^"]+)"', ln)
+    if m and m.group(2) in UNDEF:
+        changed = True
+        continue
+    out.append(ln)
+if changed:
+    open(p, "w", encoding="utf-8").write("".join(out))
+    print("  OK  : hapus deps module tidak tersedia: " + p)
+else:
+    print("  OK  : tidak ada deps module tidak tersedia: " + p)
+sys.exit(0)
+PYEOF
+        fi
+    done
+fi
+
+if [ -d tools/tradefederation ]; then
+    find tools/tradefederation -name Android.bp -print0 2>/dev/null | while IFS= read -r -d '' F; do
+        if grep -qE "\"(${UNDEF_NAMES})\"" "$F"; then
+            python3 - "$F" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+UNDEF = ("cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current", "tradefed_errorprone_defaults")
+s = open(p, encoding="utf-8").read()
+out = []
+changed = False
+for ln in s.splitlines(keepends=True):
+    m = re.match(r'^(\s*)"([^"]+)"', ln)
+    if m and m.group(2) in UNDEF:
+        changed = True
+        continue
+    out.append(ln)
+if changed:
+    open(p, "w", encoding="utf-8").write("".join(out))
+    print("  OK  : hapus deps module tidak tersedia: " + p)
+else:
+    print("  OK  : tidak ada deps module tidak tersedia: " + p)
+sys.exit(0)
+PYEOF
+        fi
+    done
+fi
+
+# ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
 check_absent() { # desc, path

@@ -142,6 +142,16 @@ Yang diterapkan:
 
 ---
 
+## 🧪 Riwayat Build Terbaru
+
+- **Run `42799759405`** (commit `1c0baf9`, audit fixes): **GAGAL** di step `Build`.
+  - Penyebab: Soong bootstrap gagal dengan `unrecognized module type "csuite_test"`.
+  - Ditempatkan di `frameworks/base/libs/WindowManager/Shell/tests/flicker/pip/Android.bp:84` dan `art/test/Android.bp:1407`.
+  - **Perbaikan:** `scripts/fix-source-tree.sh` kini patch blok `csuite_test` secara spesifik (commit `3868033`).
+- **Run `42804973683`** (commit `3868033`): **sedang berjalan**.
+
+---
+
 ## 📋 Verifikasi Build
 
 ```bash
