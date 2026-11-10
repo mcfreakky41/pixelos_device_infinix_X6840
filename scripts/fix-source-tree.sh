@@ -1,81 +1,197 @@
 #!/bin/bash
-# Fix broken PixelOS sixteen source tree files before build
+# Fix broken PixelOS sixteen source tree files before build.
 # Jalankan dari root source tree (~/android/pixelos). Idempoten.
-# Perangkat Infinix X6840 (MediaTek MT6768) tidak butuh ANY Qualcomm HAL.
-# Semua direktori Qualcomm dihapus sepenuhnya supaya Soong tidak menemukan
-# referensi namespace Qualcomm yang rusak.
 
-echo ">>> Fixing broken hardware/qcom symlinks (generic)..."
-# Symlink Android.bp yang rusak diganti stub supaya Soong tidak berhenti.
-find hardware/qcom -name Android.bp -xtype l -print 2>/dev/null | while read -r bp; do
-    echo "  Removing broken symlink: $bp"
-    rm -f "$bp"
-    echo "// Stub to satisfy soong (original symlink was broken)" > "$bp"
+set -uo pipefail
+
+ROOT="${1:-$PWD}"
+cd "$ROOT" || { echo "FATAL: tidak bisa cd ke $ROOT"; exit 1; }
+
+FAIL=0
+ok()   { echo "  OK  : $1"; }
+warn() { echo "  WARN: $1"; FAIL=$((FAIL+1)); }
+
+# ============================================================
+# 0. Pastikan direktori kerja benar-benar root source tree Android
+# ============================================================
+for marker in build/envsetup.sh build/make/core/main.mk build/soong; do
+    if [ ! -e "$marker" ]; then
+        echo "FATAL: '$ROOT' bukan root source tree Android (tidak ada $marker)."
+        echo "       Jalankan dari ~/android/pixelos atau berikan path-nya sebagai argumen."
+        exit 1
+    fi
+done
+if [ ! -f device/infinix/X6840/device.mk ]; then
+    echo "FATAL: device/infinix/X6840/device.mk tidak ada — tree ini bukan untuk X6840."
+    exit 1
+fi
+ok "root source tree terdeteksi: $ROOT"
+
+drop_dir() {
+    local d="$1"
+    case "$d" in
+        ""|"/"|".")
+            warn "menolak menghapus path berbahaya: '$d'"
+            return
+            ;;
+    esac
+    if [ -d "$d" ]; then
+        local sz
+        sz=$(du -sh "$d" 2>/dev/null | cut -f1)
+        rm -rf -- "$d" && ok "dihapus: $d (${sz:-?})" || warn "gagal menghapus: $d"
+    else
+        ok "tidak ada (dilewati): $d"
+    fi
+}
+
+# ============================================================
+# 1. Qualcomm HAL — tidak dipakai platform MediaTek
+# ============================================================
+echo ">>> Membersihkan komponen Qualcomm (tidak dipakai MT6768)..."
+if [ -d hardware/qcom ]; then
+    find hardware/qcom -name Android.bp -xtype l -print 2>/dev/null | while read -r bp; do
+        echo "  Removing broken symlink: $bp"
+        rm -f "$bp"
+        echo "// Stub to satisfy soong (original symlink was broken)" > "$bp"
+    done
+fi
+drop_dir hardware/qcom
+drop_dir hardware/qcom-caf
+drop_dir vendor/qcom
+
+# ============================================================
+# 2. LiveDisplay (HIDL) — perangkat ini tidak punya HAL-nya
+# ============================================================
+echo ">>> Menonaktifkan livedisplay HIDL (tidak ada HAL di perangkat)..."
+for d in sysfs sdm legacymm; do
+    bp="hardware/lineage/livedisplay/$d/Android.bp"
+    if [ -f "$bp" ]; then
+        mv "$bp" "$bp.disabled"
+        ok "disabled: $bp"
+    elif [ -f "$bp.disabled" ]; then
+        ok "sudah disabled: $bp"
+    fi
 done
 
-echo ">>> Removing ALL hardware/qcom/ directory (MediaTek, tidak butuh Qualcomm)..."
-rm -rf hardware/qcom 2>/dev/null || true
-echo "  hardware/qcom removed (if existed)"
-
-echo ">>> Removing ALL hardware/qcom-caf/ directory (MediaTek, tidak butuh Qualcomm)..."
-rm -rf hardware/qcom-caf 2>/dev/null || true
-echo "  hardware/qcom-caf removed (if existed)"
-
-echo ">>> Removing ALL vendor/qcom/ directory (MediaTek, tidak butuh Qualcomm)..."
-rm -rf vendor/qcom 2>/dev/null || true
-echo "  vendor/qcom removed (if existed)"
-
-echo ">>> Fixing livedisplay undefined module references..."
-# Log Soong: "depends on undefined module" (BUKAN duplikat). hardware/lineage/
-# livedisplay (HIDL) butuh vendor.lineage.livedisplay@2.0, sedangkan repo
-# interfaces (AIDL) hanya menyediakan vendor.lineage.livedisplay (V1/V2).
-# Perangkat ini tidak punya HAL LiveDisplay, jadi implementasi HAL dinonaktifkan.
-if [ -f hardware/lineage/livedisplay/sysfs/Android.bp ]; then
-    mv hardware/lineage/livedisplay/sysfs/Android.bp hardware/lineage/livedisplay/sysfs/Android.bp.disabled
-    echo "  Disabled: hardware/lineage/livedisplay/sysfs/Android.bp"
-fi
-if [ -f hardware/lineage/livedisplay/sdm/Android.bp ]; then
-    mv hardware/lineage/livedisplay/sdm/Android.bp hardware/lineage/livedisplay/sdm/Android.bp.disabled
-    echo "  Disabled: hardware/lineage/livedisplay/sdm/Android.bp"
-fi
-if [ -f hardware/lineage/livedisplay/legacymm/Android.bp ]; then
-    mv hardware/lineage/livedisplay/legacymm/Android.bp hardware/lineage/livedisplay/legacymm/Android.bp.disabled
-    echo "  Disabled: hardware/lineage/livedisplay/legacymm/Android.bp"
-fi
-
-# frameworks/base menyebut vendor.lineage.livedisplay-V2.0-java dan
-# vendor.lineage.livedisplay-V2.1-java (HIDL); yang ada di tree hanyalah
-# vendor.lineage.livedisplay-V1-java dan -V2-java (AIDL).
-# Karena perangkat ini tidak pakai livedisplay, buang semua referensi
-# livedisplay-V2-* dari frameworks/base/Android.bp.
 if [ -f frameworks/base/Android.bp ]; then
-    python3 - frameworks/base/Android.bp << 'PYEOF'
-import sys, re
+    python3 - frameworks/base/Android.bp <<'PYEOF'
+import re, sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
-# Hapus semua entri livedisplay-V2-* (V2.0-java, V2.1-java, V2-java)
-s = re.sub(r'[ \t]*"vendor\.lineage\.livedisplay-V2[^\"]*",?[ \t]*\n?', '', s)
-open(p, "w", encoding="utf-8").write(s)
-print("  Fixed:", p)
+s2 = re.sub(r'[ \t]*"vendor\.lineage\.livedisplay-V2[^"]*",?[ \t]*\n?', '', s)
+if s2 == s:
+    print("  OK  : frameworks/base/Android.bp sudah bersih (tidak ada livedisplay-V2)")
+elif "vendor.lineage.livedisplay-V2" in s2:
+    print("  WARN: masih ada referensi livedisplay-V2 setelah patch")
+    sys.exit(1)
+else:
+    open(p, "w", encoding="utf-8").write(s2)
+    print("  OK  : referensi livedisplay-V2 dibuang dari frameworks/base/Android.bp")
 PYEOF
+    [ $? -eq 0 ] || warn "gagal patch frameworks/base/Android.bp"
 fi
 
-echo ">>> Fixing SimpleSettingsConfig undefined dependency..."
-# Bergantung pada org.lineageos.platform.internal (Lineage SDK) yang tidak ada di tree ini.
-if [ -f packages/apps/SimpleSettingsConfig/Android.bp ]; then
-    mv packages/apps/SimpleSettingsConfig/Android.bp packages/apps/SimpleSettingsConfig/Android.bp.disabled
-    echo "  Disabled: packages/apps/SimpleSettingsConfig/Android.bp"
+# ============================================================
+# 3. SimpleSettingsConfig
+# Modul ini bergantung pada org.lineageos.platform.internal (lineage-sdk),
+# yang TIDAK ada di manifest PixelOS sixteen. Karena itu, perbaikan yang
+# benar adalah MEMBUANG permintaan paket dari konfigurasi produk, bukan
+# menonaktifkan definisi modul-nya.
+# ============================================================
+echo ">>> Memperbaiki SimpleSettingsConfig (butuh lineage-sdk yang tidak ada)..."
+
+if [ -f packages/apps/SimpleSettingsConfig/Android.bp.disabled ] \
+   && [ ! -f packages/apps/SimpleSettingsConfig/Android.bp ]; then
+    mv packages/apps/SimpleSettingsConfig/Android.bp.disabled \
+       packages/apps/SimpleSettingsConfig/Android.bp
+    ok "dipulihkan: packages/apps/SimpleSettingsConfig/Android.bp"
 fi
 
-echo ">>> Fixing vendor/aosp/build/soong/Android.bp Make variables and kernel module dependencies..."
-# vendor/aosp/build/soong/Android.bp uses Make variables $(PATH_OVERRIDE_SOONG) and
-# $(KERNEL_BUILD_OUT_PREFIX) in .bp cmd: fields, which Soong does NOT expand.
-# Also, kernel header modules reference each other and break when we use
-# TARGET_PREBUILT_KERNEL (no public kernel source).
-# Since this is a MediaTek device with prebuilt kernel, remove the entire file.
-if [ -f vendor/aosp/build/soong/Android.bp ]; then
-    mv vendor/aosp/build/soong/Android.bp vendor/aosp/build/soong/Android.bp.disabled
-    echo "  Disabled: vendor/aosp/build/soong/Android.bp"
+python3 - <<'PYEOF'
+import glob, re, sys
+
+changed = []
+for path in glob.glob("vendor/aosp/**/*.mk", recursive=True):
+    try:
+        s = open(path, encoding="utf-8").read()
+    except (OSError, UnicodeDecodeError):
+        continue
+    if "SimpleSettingsConfig" not in s:
+        continue
+
+    # Kasus paling umum: SimpleSettingsConfig adalah satu-satunya isi blok
+    # 'PRODUCT_PACKAGES += \', jadi buang juga baris '+= \'.
+    s2 = re.sub(
+        r'^[ \t]*PRODUCT_PACKAGES[ \t]*\+=[ \t]*\\[ \t]*\r?\n'
+        r'[ \t]*SimpleSettingsConfig[ \t]*\r?\n',
+        '', s, flags=re.M)
+    # Selain itu, hapus entri-nya saja dari daftar.
+    s2 = re.sub(r'^[ \t]*SimpleSettingsConfig[ \t]*\\?[ \t]*\r?\n', '', s2, flags=re.M)
+    # Rapikan backslash menggantung bila baris terakhir blok tadi dihapus.
+    s2 = re.sub(r'\\[ \t]*\n([ \t]*#)', r'\n\1', s2)
+    s2 = re.sub(r'\\[ \t]*\n([ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*[:+?]?=)', r'\n\1', s2)
+    if s2 != s:
+        open(path, "w", encoding="utf-8").write(s2)
+        changed.append(path)
+
+if changed:
+    for p in changed:
+        print(f"  OK  : SimpleSettingsConfig dihapus dari PRODUCT_PACKAGES ({p})")
+else:
+    print("  OK  : tidak ada permintaan SimpleSettingsConfig di vendor/aosp (sudah bersih)")
+
+leftover = []
+for path in glob.glob("vendor/aosp/**/*.mk", recursive=True):
+    try:
+        for i, ln in enumerate(open(path, encoding="utf-8"), 1):
+            if re.fullmatch(r'[ \t]*SimpleSettingsConfig[ \t]*\r?\n?', ln):
+                leftover.append(f"{path}:{i}")
+    except (OSError, UnicodeDecodeError):
+        continue
+if leftover:
+    print("  WARN: masih ada baris SimpleSettingsConfig: " + ", ".join(leftover))
+    sys.exit(1)
+PYEOF
+[ $? -eq 0 ] || warn "masih ada permintaan SimpleSettingsConfig"
+
+# ============================================================
+# 4. vendor/aosp/build/soong/Android.bp — kernel modules tidak dipakai
+# ============================================================
+VBP="vendor/aosp/build/soong/Android.bp"
+if [ -f "$VBP" ]; then
+    mv "$VBP" "$VBP.disabled"
+    ok "disabled: $VBP"
+elif [ -f "$VBP.disabled" ]; then
+    ok "sudah disabled: $VBP"
 fi
 
+# ============================================================
+# 5. Verifikasi akhir (fail-closed)
+# ============================================================
+check_absent() { # desc, path
+    if [ -e "$2" ]; then warn "masih ada: $2 ($1)"; else ok "$1"; fi
+}
+
+check_absent "hardware/qcom sudah hilang"      hardware/qcom
+check_absent "hardware/qcom-caf sudah hilang"  hardware/qcom-caf
+check_absent "vendor/qcom sudah hilang"        vendor/qcom
+
+if [ -f frameworks/base/Android.bp ] \
+   && grep -q "vendor.lineage.livedisplay-V2" frameworks/base/Android.bp; then
+    warn "frameworks/base/Android.bp masih menyebut livedisplay-V2"
+else
+    ok "frameworks/base/Android.bp bersih dari livedisplay-V2"
+fi
+
+if grep -rqE '^[[:space:]]*SimpleSettingsConfig[[:space:]]*$' vendor/aosp --include='*.mk' 2>/dev/null; then
+    warn "masih ada permintaan SimpleSettingsConfig di vendor/aosp"
+else
+    ok "tidak ada permintaan SimpleSettingsConfig di vendor/aosp"
+fi
+
+if [ "$FAIL" -gt 0 ]; then
+    echo ">>> SELESAI DENGAN $FAIL MASALAH — periksa WARN di atas."
+    exit 1
+fi
 echo ">>> Source tree fixes applied."
+exit 0

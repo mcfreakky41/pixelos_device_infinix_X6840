@@ -59,7 +59,7 @@ jobs:
           echo "=== Disk sesudah ==="; df -h /; df -ih /
 
       - name: Checkout device tree
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: device-tree
           fetch-depth: 0
@@ -380,6 +380,15 @@ jobs:
           "$CLANG_DIR/clang-r584948b/bin/clang" --version | head -2 || true
           du -sh "$CLANG_DIR" 2>/dev/null || true
 
+          # Workaround versi ini TIDAK membuat LLVM 22 setara dengan LLVM 20
+          # yang diminta tree. Buktikan minimal compiler benar-benar bisa
+          # menghasilkan dan menjalankan binary aarch64 sebelum build panjang.
+          printf 'int main(void){return 0;}\n' > /tmp/clang-smoke.c
+          "$CLANG_DIR/clang-r584948b/bin/clang" /tmp/clang-smoke.c -o /tmp/clang-smoke
+          /tmp/clang-smoke
+          rm -f /tmp/clang-smoke.c /tmp/clang-smoke
+          echo ">>> OK: clang arm64 bisa compile + run binary host"
+
       - name: Setup JDK 8 (arm64, host tools)
         run: |
           cd ~/android/pixelos
@@ -408,7 +417,7 @@ jobs:
           ls -la "$JDK8_DIR/jre/lib/" | head -10
 
       - name: Setup JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -424,19 +433,25 @@ jobs:
           cp -r "$GITHUB_WORKSPACE/device-tree/device/infinix/X6840" device/infinix/X6840
           cp -r "$GITHUB_WORKSPACE/device-tree/vendor/infinix/X6840" vendor/infinix/X6840
 
+      # Dry-run dijalankan terhadap CHECKOUT YANG SAMA dengan build (--root),
+      # bukan branch remote yang bisa berubah. Kalau anchor patch tidak cocok,
+      # kita berhenti di sini (hitungan detik) alih-alih setelah 40+ menit.
+      - name: Dry-run ARM64 host patches
+        run: |
+          cd ~/android/pixelos
+          python3 "$GITHUB_WORKSPACE/device-tree/scripts/dryrun-arm64-patches.py" --root "$PWD"
+
       - name: Apply ARM64 host patches
         run: |
           cd ~/android/pixelos
-          bash "$GITHUB_WORKSPACE/device-tree/scripts/apply-arm64-host.sh" "$PWD" || true
-          echo ">>> verifikasi cepat:"
-          grep -n "HOST_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_ARCH arm64 TIDAK ada"
-          grep -n "HOST_PREBUILT_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_PREBUILT_ARCH arm64 TIDAK ada"
-          [ -f build/make/core/clang/HOST_arm64.mk ] && echo "    OK  : HOST_arm64.mk" || echo "    !! HOST_arm64.mk tidak ada"
+          # Fail-closed: skrip memverifikasi semua penanda dan exit nonzero
+          # bila ada patch wajib yang gagal. Jangan tambahkan '|| true'.
+          bash "$GITHUB_WORKSPACE/device-tree/scripts/apply-arm64-host.sh" "$PWD"
 
       - name: Fix source tree (PixelOS sixteen)
         run: |
           cd ~/android/pixelos
-          bash "$GITHUB_WORKSPACE/device-tree/scripts/fix-source-tree.sh"
+          bash "$GITHUB_WORKSPACE/device-tree/scripts/fix-source-tree.sh" "$PWD"
 
       - name: Fetch vendor blobs
         run: |
@@ -507,23 +522,58 @@ jobs:
           ls -lh out/target/product/X6840/*.img 2>/dev/null || true
           echo "=== Disk setelah build ==="; df -h /
 
+      # Validasi wajib sebelum upload: jangan pernah menganggap build berhasil
+      # kalau image yang dibutuhkan untuk flashing tidak ada / berukuran nol.
+      - name: Validate built images
+        if: success()
+        run: |
+          cd ~/android/pixelos/out/target/product/X6840
+          required="system.img system_ext.img product.img vbmeta.img vbmeta_system.img vbmeta_vendor.img"
+          fail=0
+          for f in $required; do
+            if [ ! -s "$f" ]; then
+              echo "!! MISSING / kosong: $f"
+              fail=1
+            else
+              printf '    OK  : %-20s %s bytes\n' "$f" "$(stat -c%s "$f")"
+            fi
+          done
+          if [ "$fail" != "0" ]; then
+            echo ">>> VALIDASI IMAGE GAGAL"
+            ls -lh . || true
+            exit 1
+          fi
+
+          # Ringkasan AVB (informatif): pastikan descriptor partisi yang
+          # diverifikasi fstab memang ada di vbmeta hasil build.
+          AVBTOOL=~/android/pixelos/external/avb/avbtool
+          if [ -f "$AVBTOOL" ]; then
+            for v in vbmeta*.img; do
+              echo "=== $v ==="
+              python3 "$AVBTOOL" info_image --image "$v" 2>/dev/null \
+                | grep -E "Image size|Algorithm|Rollback Index|Partition Name|Salt" | head -20 || true
+            done
+          else
+            echo "    WARN: avbtool tidak ada, ringkasan AVB dilewati"
+          fi
+          echo ">>> Semua image wajib ada dan tidak kosong"
+
       - name: Upload ROM
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: PixelOS-X6840-${{ github.run_number }}
           path: |
-            /home/runner/android/pixelos/out/target/product/X6840/*.zip
             /home/runner/android/pixelos/out/target/product/X6840/system.img
             /home/runner/android/pixelos/out/target/product/X6840/system_ext.img
             /home/runner/android/pixelos/out/target/product/X6840/product.img
             /home/runner/android/pixelos/out/target/product/X6840/vbmeta*.img
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
 
       - name: Upload build log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-log-${{ github.run_number }}
           path: /home/runner/android/pixelos/build.log

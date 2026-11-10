@@ -16,13 +16,25 @@
 #
 # SIFAT
 #   Idempoten: aman dijalankan berulang. Kalau penanda sudah ada, dilewati.
-#   Tidak fatal: tiap langkah dicatat; kegagalan satu langkah tidak menghentikan
-#   langkah lain supaya satu run bisa mengungkap banyak hal sekaligus.
+#   Fail-closed: setiap patch WAJIB diperiksa. Anchor yang tidak cocok membuat
+#   langkah itu gagal, dan di akhir skrip semua penanda diverifikasi ulang.
+#   Skrip keluar dengan kode nonzero bila ada satu saja masalah, supaya CI
+#   tidak melanjutkan build dengan build system yang setengah ter-patch.
 # =============================================================================
-set -u
+set -uo pipefail
 
 ROOT="${1:-$PWD}"
 cd "$ROOT" || { echo "FATAL: tidak bisa cd ke $ROOT"; exit 1; }
+
+# Pastikan direktori kerja benar-benar root source tree Android. Tanpa ini,
+# skrip bisa "berhasil" memodifikasi direktori lain yang kebetulan punya
+# struktur mirip, atau gagal dengan pesan yang membingungkan.
+for marker in build/envsetup.sh build/make/core/main.mk build/soong; do
+  if [ ! -e "$marker" ]; then
+    echo "FATAL: '$ROOT' bukan root source tree Android (tidak ada $marker)."
+    exit 1
+  fi
+done
 
 echo "=============================================================="
 echo " apply-arm64-host.sh  (root=$ROOT)"
@@ -119,7 +131,7 @@ fi
 step "0002" "envsetup.mk: HOST_ARCH=arm64 + HOST_PREBUILT_ARCH=arm64 + clang HOST_arm64.mk"
 ENVMK="build/make/core/envsetup.mk"
 if [ -f "$ENVMK" ]; then
-  python3 - "$ENVMK" <<'PY'
+  python3 - "$ENVMK" <<'PY' || warn "gagal patch envsetup.mk"
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
@@ -150,6 +162,7 @@ elif anchor in s:
     print("    OK  : cabang HOST_ARCH arm64 ditambahkan")
 else:
     print("    WARN: anchor HOST_ARCH tak cocok")
+    sys.exit(1)
 
 # (a2) tutup 'endif' tambahan pada blok 32-bit.
 #   Cabang arm64 menambah satu 'else' -> butuh satu 'endif' ekstra.
@@ -181,6 +194,7 @@ if "HOST_ARCH := arm64" in s and MARK_A2 not in s:
         print("    OK  : endif penutup ditambahkan (blok HOST_ARCH)")
     else:
         print("    WARN: baris $(error 32-bit) / 2x endif tak ditemukan")
+        sys.exit(1)
 elif MARK_A2 in s:
     print("    SKIP: endif penutup sudah ada")
 
@@ -203,6 +217,7 @@ elif old_b in s:
     print("    OK  : HOST_PREBUILT_ARCH arm64 ditambahkan")
 else:
     print("    WARN: anchor HOST_PREBUILT_ARCH tak cocok")
+    sys.exit(1)
 
 if changed:
     open(p, "w", encoding="utf-8").write(s)
@@ -231,7 +246,7 @@ fi
 step "0006" "soong/paths.go: host-out dir naming utk host arm64"
 PATHS="build/soong/android/paths.go"
 if [ -f "$PATHS" ]; then
-  python3 - "$PATHS" <<'PY'
+  python3 - "$PATHS" <<'PY' || warn "gagal patch soong/paths.go"
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
@@ -246,6 +261,7 @@ elif old1 in s:
     print("    OK  : collapse LinuxMusl -> linux")
 else:
     print("    WARN: anchor collapse LinuxMusl tak cocok")
+    sys.exit(1)
 
 old2 = '''		archName := arch.String()
 		if os.Class == Host && (arch == X86_64 || arch == Common) {
@@ -267,6 +283,7 @@ elif old2 in s:
     print("    OK  : archName arm64 ditambahkan")
 else:
     print("    WARN: anchor archName tak cocok")
+    sys.exit(1)
 
 if changed:
     open(p, "w", encoding="utf-8").write(s)
@@ -281,7 +298,7 @@ fi
 step "0007" "soong/rule_builder.go: stage libc_musl.so utk BuiltTool musl"
 RB="build/soong/android/rule_builder.go"
 if [ -f "$RB" ]; then
-  python3 - "$RB" <<'PY'
+  python3 - "$RB" <<'PY' || warn "gagal patch soong/rule_builder.go"
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
@@ -295,6 +312,7 @@ elif old in s:
     print("    OK  : rule_builder.go dipatch")
 else:
     print("    WARN: anchor rule_builder tak cocok")
+    sys.exit(1)
 PY
 else
   warn "$RB tidak ada"
@@ -307,7 +325,7 @@ fi
 step "0004" "prebuilts/build-tools/Android.bp: enable arm64 utk bison/flex/m4/make"
 BT="prebuilts/build-tools/Android.bp"
 if [ -f "$BT" ]; then
-  python3 - "$BT" <<'PY'
+  python3 - "$BT" <<'PY' || warn "gagal patch build-tools/Android.bp"
 import re, sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
@@ -335,6 +353,9 @@ s, k2 = pat2.subn(
     '        arm64: {\n            enabled: true,\n        },\n    },', s)
 count += k2
 
+if count == 0:
+    print("    WARN: tidak ada anchor build-tools yang cocok")
+    sys.exit(1)
 open(p, "w", encoding="utf-8").write(s)
 print("    OK  : build-tools dipatch (target=%d, arch=%d)" % (count - k2, k2))
 PY
@@ -398,7 +419,7 @@ step "0009" "soong/rust/builder.go: DILEWATI (tidak terbukti / premis sudah ada 
 if [ -f "build/soong/rust/builder.go" ]; then
   skip "0009 tidak diterapkan — lihat komentar & README"
 else
-  warn "build/soong/rust/builder.go tidak ada"
+  skip "build/soong/rust/builder.go tidak ada (0009 memang tidak diterapkan)"
 fi
 
 # =============================================================================
@@ -409,7 +430,7 @@ fi
 step "0002b" "core/clang/config.mk: pakai clang arm64 utk host arm64"
 CLANGCFG="build/make/core/clang/config.mk"
 if [ -f "$CLANGCFG" ]; then
-  python3 - "$CLANGCFG" <<'PY'
+  python3 - "$CLANGCFG" <<'PY' || warn "gagal patch clang/config.mk"
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
@@ -442,6 +463,7 @@ if old in s:
     print("    OK  : clang/config.mk dipatch (LLVM_READOBJ + RTLIB_PATH arm64)")
 else:
     print("    WARN: anchor clang/config.mk tak cocok")
+    sys.exit(1)
 PY
 else
   warn "$CLANGCFG tidak ada"
@@ -454,7 +476,7 @@ fi
 step "0005" "prebuilts/jdk/jdk21/Android.bp: enable javap utk arm64 host"
 JDKBP="prebuilts/jdk/jdk21/Android.bp"
 if [ -f "$JDKBP" ]; then
-  python3 - "$JDKBP" <<'PY'
+  python3 - "$JDKBP" <<'PY' || warn "gagal patch jdk21/Android.bp"
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
@@ -507,6 +529,7 @@ if old in s:
     print("    OK  : javap arm64 ditambahkan")
 else:
     print("    WARN: anchor jdk21/Android.bp tak cocok")
+    sys.exit(1)
 PY
 else
   warn "$JDKBP tidak ada"
@@ -541,7 +564,7 @@ if [ -f "$JW" ]; then
   if grep -qF 'exec java -Xmx8g' "$JW"; then
     skip "sudah dipatch: $JW"
   elif grep -qF 'exec java "${javaOpts[@]}" -jar ${jardir}/${jarfile} "$@"' "$JW"; then
-    python3 - "$JW" <<'PY'
+    python3 - "$JW" <<'PY' || warn "gagal patch jar-wrapper.sh"
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
@@ -581,7 +604,7 @@ fi
 step "0015" "soong/android/arch.go: OsType Linux + Arm64 (host aarch64)"
 ARCHGO="build/soong/android/arch.go"
 if [ -f "$ARCHGO" ]; then
-  python3 - "$ARCHGO" <<'PY'
+  python3 - "$ARCHGO" <<'PY' || warn "gagal patch soong/android/arch.go"
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
@@ -597,6 +620,7 @@ new = ('\t// arm64-host: host aarch64 juga butuh varian linux_glibc_arm64\n'
 
 if old not in s:
     print("    WARN: anchor 'Linux = newOsType(\"linux_glibc\"' tak cocok")
+    sys.exit(1)
     sys.exit(0)
 
 s = s.replace(old, new, 1)
@@ -635,7 +659,7 @@ fi
 step "0016" "soong/rust/config/arm_linux_host.go: toolchain rust host glibc aarch64"
 RUSTCFG="build/soong/rust/config/arm_linux_host.go"
 if [ -f "$RUSTCFG" ]; then
-  python3 - "$RUSTCFG" <<'PY'
+  python3 - "$RUSTCFG" <<'PY' || warn "gagal patch rust/config/arm_linux_host.go"
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
@@ -678,6 +702,7 @@ var toolchainLinuxGlibcArm64Singleton Toolchain = &toolchainLinuxGlibcArm64{}
 
 if old not in s:
     print("    WARN: anchor init() arm_linux_host.go tak cocok")
+    sys.exit(1)
     sys.exit(0)
 
 s = s.replace(old, new, 1)
@@ -719,7 +744,7 @@ fi
 step "0017" "prebuilts/rust/soong/rustprebuilts.go: prebuilt std host arm64"
 RPRE="prebuilts/rust/soong/rustprebuilts.go"
 if [ -f "$RPRE" ]; then
-  python3 - "$RPRE" <<'PY'
+  python3 - "$RPRE" <<'PY' || warn "gagal patch rustprebuilts.go"
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
@@ -780,6 +805,7 @@ new3 = '''\t\tif ctx.Config().BuildOS == android.Linux {
 for idx, (o, n) in enumerate([(old1, new1), (old2, new2), (old3, new3)], start=1):
     if o not in s:
         print("    WARN: anchor #%d tak cocok, patch dibatalkan" % idx)
+        sys.exit(1)
         sys.exit(0)
 
 s = s.replace(old1, new1, 1)
@@ -793,29 +819,54 @@ else
 fi
 
 # =============================================================================
-# RINGKASAN + jejak verifikasi
+# VERIFIKASI AKHIR (fail-closed)
+# -----------------------------------------------------------------------------
+# Skrip ini mengubah banyak bagian build system. Kalau satu patch wajib gagal
+# tanpa terdeteksi, build bisa berhenti jauh di tengah atau menghasilkan tree
+# yang tidak konsisten. Semua marker wajib diperiksa di sini dan skrip WAJIB
+# keluar dengan kode nonzero bila ada yang hilang.
 # =============================================================================
 echo ""
 echo "=============================================================="
-echo " RINGKASAN apply-arm64-host.sh"
-echo "   langkah bermasalah (WARN): $FAILED"
+echo " VERIFIKASI apply-arm64-host.sh"
 echo "=============================================================="
-echo "--- Verifikasi cepat ---"
-grep -n "HOST_ARCH := arm64" build/make/core/envsetup.mk 2>/dev/null | head -2
-grep -n "HOST_PREBUILT_ARCH := arm64" build/make/core/envsetup.mk 2>/dev/null | head -2
-grep -n "linux-arm64" build/make/envsetup.sh 2>/dev/null | head -2
-ls -la build/make/core/clang/HOST_arm64.mk 2>/dev/null
-grep -c "linux-arm64" prebuilts/build-tools/Android.bp 2>/dev/null | sed 's/^/    build-tools linux-arm64 refs: /'
-grep -n "arm64-host: toolchain rust host glibc untuk aarch64" build/soong/rust/config/arm_linux_host.go 2>/dev/null | head -2
-grep -n "linuxGlibcArm64ToolchainFactory" build/soong/rust/config/arm_linux_host.go 2>/dev/null | head -2
-grep -n "arm64-host: prebuilt std Rust untuk host aarch64" prebuilts/rust/soong/rustprebuilts.go 2>/dev/null | head -2
+
+require_marker() { # <deskripsi> <file> <teks>
+  if [ -f "$2" ] && grep -qF -- "$3" "$2" 2>/dev/null; then
+    ok "$1"
+  else
+    warn "verifikasi GAGAL: $1 ($2 tidak memuat '$3')"
+  fi
+}
+
+require_marker "0001 envsetup.sh linux-arm64"           build/make/envsetup.sh "linux-arm64"
+require_marker "0002a HOST_ARCH arm64"                  build/make/core/envsetup.mk "HOST_ARCH := arm64"
+require_marker "0002a2 endif penutup blok HOST_ARCH"    build/make/core/envsetup.mk "# arm64-host: endif penutup blok HOST_ARCH"
+require_marker "0002b HOST_PREBUILT_ARCH arm64"         build/make/core/envsetup.mk "HOST_PREBUILT_ARCH := arm64"
+require_marker "0002c clang HOST_arm64.mk"              build/make/core/clang/HOST_arm64.mk "HOST_LIBCRT_BUILTINS"
+require_marker "0006a paths.go collapse LinuxMusl"      build/soong/android/paths.go "os == ctx.Config().BuildOS"
+require_marker "0006b paths.go archName arm64"          build/soong/android/paths.go 'archName = "arm64"'
+require_marker "0007 rule_builder.go BuildOS LinuxMusl" build/soong/android/rule_builder.go "c.rule.ctx.Config().BuildOS == LinuxMusl"
+require_marker "0004 build-tools linux-arm64"           prebuilts/build-tools/Android.bp "linux-arm64/bin/"
+require_marker "0002b clang/config.mk arm64"            build/make/core/clang/config.mk "LLVM_HOST_PREBUILT_ARCH := arm64"
+require_marker "0005 jdk21 javap arm64"                 prebuilts/jdk/jdk21/Android.bp "linux_musl_arm64"
+require_marker "0012 sepolicy getopt int"               system/sepolicy/tools/checkfc.c "int c;"
+require_marker "0014 jar-wrapper -Xmx8g"                build/soong/scripts/jar-wrapper.sh "exec java -Xmx8g"
+require_marker "0015 arch.go Linux + Arm64"             build/soong/android/arch.go "arm64-host: host aarch64 juga butuh varian linux_glibc_arm64"
+require_marker "0016 rust glibc arm64 toolchain"        build/soong/rust/config/arm_linux_host.go "linuxGlibcArm64ToolchainFactory"
+require_marker "0017 rustprebuilts arm64"               prebuilts/rust/soong/rustprebuilts.go "arm64-host: prebuilt std Rust untuk host aarch64"
+
+echo "--- info tambahan ---"
 grep -q 'filepath.Join("linux-x86", GetRustPrebuiltVersion' build/soong/rust/toolchain_library.go 2>/dev/null \
   && echo "    OK  : hardcode linux-x86 dipertahankan (prefix crate arch-independent; PATCH 0003 sengaja di-skip)" \
   || echo "    CATATAN: hardcode linux-x86 rust tidak ada (PATCH 0003 terpasang?)"
-echo "--- tambahan ---"
-grep -c "linux_musl_arm64" prebuilts/jdk/jdk21/Android.bp 2>/dev/null | sed 's/^/    jdk21 linux_musl_arm64 refs: /'
-grep -n "^[[:space:]]*int c;" system/sepolicy/tools/checkfc.c 2>/dev/null | head -1
-grep -n "Xmx8g" build/soong/scripts/jar-wrapper.sh 2>/dev/null | head -1
-echo "=============================================================="
 
+echo "=============================================================="
+if [ "$FAILED" -gt 0 ]; then
+  echo " HASIL: GAGAL — $FAILED masalah (lihat WARN/verifikasi di atas)"
+  echo "=============================================================="
+  exit 1
+fi
+echo " HASIL: SEMUA PATCH WAJIB TERPASANG"
+echo "=============================================================="
 exit 0

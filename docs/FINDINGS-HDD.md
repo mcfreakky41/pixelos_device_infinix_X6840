@@ -87,7 +87,26 @@ userdata=p52 (49,912,800 KB ≈ 47.6 GB)
 - `system-sdk = {..., 34, 35, 36}`
 
 ### Kesimpulan
-✅ **KOMPATIBLE** — `{35} ⊆ {34,35,36}`
+⚠️ **COCOK PADA NILAI system-sdk, VINTF PENUH BELUM DIBUKTIKAN**
+
+`{35} ⊆ {34,35,36}` hanya menunjukkan nilai `system-sdk` vendor ada di daftar
+yang disediakan framework. Ini **bukan** bukti kompatibilitas VINTF lengkap.
+Pemeriksaan VINTF melibatkan dua pasangan:
+
+1. Framework compatibility matrix (FCM) vs **device manifest** vendor.
+2. Framework manifest vs **device compatibility matrix** vendor.
+
+Selain itu versi FCM, versi HAL, dan `kernel` requirements harus cocok.
+
+Yang masih perlu dilakukan sebelum menyimpulkan "kompatibel":
+
+- jalankan `checkvintf` dengan manifest stok dan FCM/FM dari build,
+- bandingkan versi HAL yang dideklarasikan vendor dengan yang diminta framework,
+- jalankan VTS/VTS-TestCase yang relevan pada perangkat.
+
+Bukti yang sudah ada: GSI Android 16 (AxionOS 2.8) berhasil boot dengan vendor
+Android 15. Itu menunjukkan system-side A16 bisa berjalan, tetapi belum
+membuktikan seluruh HAL vendor memenuhi kontrak VINTF yang diminta build ini.
 
 ---
 
@@ -96,7 +115,7 @@ userdata=p52 (49,912,800 KB ≈ 47.6 GB)
 ### Opsi 1: Android 16 (Direkomendasikan)
 - ✅ GSI A16 sudah terbukti boot
 - Pakai kernel 6.6.89 stok
-- System A16 + vendor A15 = stable
+- System A16 + vendor A15: layak dicoba, **belum terbukti stabil** untuk build ini
 
 ### Opsi 2: Android 15 (Fallback)
 - Jika ada masalah tak terprediksi
@@ -112,9 +131,9 @@ userdata=p52 (49,912,800 KB ≈ 47.6 GB)
 | Vendor API | 15 / 35 |
 | Kernel | 6.6.89-android15-8 (prebuilt) |
 | AVB | SHA256_RSA2048, vbmeta_system + vbmeta_vendor |
-| Dynamic Partitions | Ya (super partition) |
-| A/B OTA | Ya (slot a/b) |
-| Verified Boot | Orange (unlocked) |
+| Dynamic Partitions | Ya (super partition, group `main`) |
+| A/B OTA | Ya (slot a/b); konfigurasi build memakai Virtual A/B |
+| Verified Boot | Orange (unlocked), build memakai AOSP test key |
 
 ---
 

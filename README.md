@@ -89,21 +89,38 @@ Atau lewat UI:
 ### Lokal
 
 ```bash
-# 1. Sinkron source
+# 1. Sinkron source PixelOS sixteen
+mkdir -p ~/android/pixelos && cd ~/android/pixelos
 repo init -u https://github.com/PixelOS-AOSP/manifest -b sixteen --depth=1
 repo sync -c -j$(nproc --all)
 
-# 2. Terapkan patch ARM64 host
-bash device/infinix/X6840/scripts/apply-arm64-host.sh
+# 2. Tempatkan device tree + vendor tree dari repo ini ke source tree
+#    (repo ini BUKAN root source tree; scripts/ ada di root repo ini)
+git clone https://github.com/mcfreakky41/pixelos_device_infinix_X6840 /tmp/x6840-tree
+mkdir -p device/infinix vendor/infinix
+cp -r /tmp/x6840-tree/device/infinix/X6840 device/infinix/X6840
+cp -r /tmp/x6840-tree/vendor/infinix/X6840 vendor/infinix/X6840
 
-# 3. Fetch vendor blobs
-bash device/infinix/X6840/scripts/fetch-blobs.sh
+# 3. Cek anchor patch terhadap checkout ini, lalu terapkan (fail-closed)
+python3 /tmp/x6840-tree/scripts/dryrun-arm64-patches.py --root "$PWD"
+bash /tmp/x6840-tree/scripts/apply-arm64-host.sh "$PWD"
 
-# 4. Build (image-only, cukup untuk flashing system/system_ext/product/vbmeta)
+# 4. Perbaiki source tree (SimpleSettingsConfig, livedisplay, Qualcomm)
+bash /tmp/x6840-tree/scripts/fix-source-tree.sh "$PWD"
+
+# 5. Fetch + verifikasi vendor blobs (wajib cocok dengan SHA256SUMS)
+bash /tmp/x6840-tree/scripts/fetch-blobs.sh vendor/infinix/X6840/proprietary
+
+# 6. Build (image-only, cukup untuk flashing system/system_ext/product/vbmeta)
 source build/envsetup.sh
 lunch pixelos_X6840 bp2a userdebug
 mka systemimage systemextimage productimage vbmetaimage -j$(nproc --all)
 ```
+
+> Script mengubah source tree upstream secara langsung. Kalau `repo sync`
+> dijalankan ulang, jalankan lagi langkah 3–4 (keduanya idempoten).
+> Kalau `dryrun` atau `apply` gagal, **jangan** lanjut build: anchor patch
+> berarti berubah dan hasil build tidak bisa dipercaya.
 
 ---
 
@@ -123,10 +140,17 @@ Lihat detail di [`patches/arm64-host/README.md`](patches/arm64-host/README.md).
 
 ## ⚡ Flash
 
-### Prosedur (terbukti berhasil)
+### Prosedur singkat
+
+> **Belum diuji pada perangkat fisik dengan image hasil build ini.** Backup
+> dulu (lewat ADB saat Android masih boot), baru masuk fastbootd. Urutan
+> lengkap + rollback ada di [`docs/FLASHING.md`](docs/FLASHING.md).
 
 ```bash
+# Backup dilakukan SEBELUM reboot (lihat docs/FLASHING.md)
 adb reboot fastboot
+fastboot getvar is-userspace    # harus: yes (fastbootd)
+
 fastboot flash system      <system.img>
 fastboot flash system_ext  <system_ext.img>
 fastboot flash product     <product.img>
@@ -136,8 +160,11 @@ fastboot reboot
 
 ### Yang Tidak Boleh Diflash
 
-❌ **Jangan flash `super.img`** - vendor.img hasil rebuild tidak valid  
-❌ `boot`, `vendor_boot`, `init_boot`, `dtbo`, `vendor`, `odm`, `*_dlkm` tetap stok
+❌ **Jangan flash `super.img`** — build ini tidak membuatnya, dan
+`vendor.img` hasil rebuild belum tervalidasi  
+❌ `boot`, `vendor_boot`, `init_boot`, `dtbo`, `vendor`, `odm`, `*_dlkm` tetap stok  
+❌ `vbmeta_system.img` / `vbmeta_vendor.img` hanya untuk inspeksi pada prosedur
+normal (vendor tetap stok)
 
 Lihat panduan lengkap di [`docs/FLASHING.md`](docs/FLASHING.md).
 
@@ -157,7 +184,7 @@ Lihat panduan lengkap di [`docs/FLASHING.md`](docs/FLASHING.md).
 
 ## 🐛 Laporkan Bug
 
-Gunakan [Issue Template](.github/ISSUE_TEMPLATE/bug_report.md) dengan:
+Gunakan [Issue Template](.github/ISSUE_TEMPLATE/bug_report.yml) dengan:
 
 1. Build number (misal: run #124)
 2. Log build error

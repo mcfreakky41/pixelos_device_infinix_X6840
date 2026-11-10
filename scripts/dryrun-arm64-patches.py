@@ -8,14 +8,21 @@ Masalah yang dipecahkan:
   Siklus 25 menit untuk satu bug teks itu terlalu mahal.
 
 Cara kerja:
-  1. Unduh sumber PixelOS `sixteen` yang relevan (raw githubusercontent).
+  1. Ambil sumber PixelOS yang relevan:
+       - mode lokal (--root): baca dari checkout yang BENAR-BENAR dipakai build
+         (revisi sudah dipin oleh manifest repo). Ini yang dipakai CI.
+       - mode remote (tanpa --root): unduh branch `sixteen` dari
+         raw.githubusercontent. Berguna untuk cek cepat di laptop, tetapi
+         branch bisa berubah sehingga hasilnya tidak merepresentasikan build.
   2. Terapkan logika patch yang SAMA dengan scripts/apply-arm64-host.sh.
   3. Verifikasi: penanda ada, struktur seimbang, tidak ada WARN.
 
 Pakai:
-  python dryrun-arm64-patches.py            # jalankan semua cek
-  python dryrun-arm64-patches.py --verbose  # tampilkan potongan hasil
+  python dryrun-arm64-patches.py --root ~/android/pixelos   # CI / tree lokal
+  python dryrun-arm64-patches.py                            # cek remote
 """
+import argparse
+import os
 import sys
 import urllib.request
 
@@ -26,11 +33,40 @@ RAW = {
     "android_system_sepolicy": f"{BASE}/android_system_sepolicy/sixteen",
 }
 
+# repo logis -> path di root source tree
+LOCAL_MAP = {
+    "android_build": "build/make",
+    "android_build_soong": "build/soong",
+    "android_system_sepolicy": "system/sepolicy",
+    "prebuilts_build_tools": "prebuilts/build-tools",
+    "prebuilts_jdk21": "prebuilts/jdk/jdk21",
+    "prebuilts_rust": "prebuilts/rust",
+}
+
 FAILS = []
 WARNS = []
+ROOT = None
 
 
 def fetch(repo, path):
+    """Baca file dari checkout lokal (mode --root) atau dari GitHub raw."""
+    if ROOT is not None:
+        local = os.path.join(ROOT, LOCAL_MAP[repo], path)
+        if not os.path.isfile(local):
+            FAILS.append(f"file tidak ada di checkout: {local}")
+            print(f"  FAIL file tidak ada di checkout: {local}")
+            return None
+        try:
+            with open(local, encoding="utf-8") as f:
+                return f.read()
+        except (OSError, UnicodeDecodeError) as e:
+            FAILS.append(f"gagal baca {local} -> {e}")
+            return None
+
+    if repo not in RAW:
+        print(f"  INFO {repo}/{path}: hanya diperiksa pada mode --root")
+        return None
+
     url = f"{RAW[repo]}/{path}"
     try:
         return urllib.request.urlopen(url, timeout=60).read().decode("utf-8")
@@ -191,8 +227,16 @@ LLVM_RTLIB_PATH := $(LLVM_PREBUILTS_BASE)/linux-x86/$(LLVM_PREBUILTS_VERSION)/li
 # ===========================================================================
 def patch_0004():
     print("\n[0004] prebuilts/build-tools/Android.bp: bison/flex/m4/make arm64")
-    # repo prebuilts tidak di githubusercontent PixelOS -> lewati, catat saja
-    warn("diperiksa saat runtime CI (repo prebuilts tak tersedia via raw)")
+    s = fetch("prebuilts_build_tools", "Android.bp")
+    if s is None:
+        return
+    if 'src: "linux-arm64/bin/' in s:
+        check("build-tools arm64 sudah ada", True)
+        return
+    for n in ("bison", "flex", "m4", "make"):
+        check(f"anchor linux-x86/bin/{n} ada", f'src: "linux-x86/bin/{n}"' in s)
+    check("blok arch x86_64 enabled ada",
+          "        x86_64: {\n            enabled: true,\n        },\n    }," in s)
 
 
 # ===========================================================================
@@ -281,7 +325,13 @@ def patch_0009():
 # ===========================================================================
 def patch_0005():
     print("\n[0005] prebuilts/jdk/jdk21/Android.bp")
-    warn("diperiksa saat runtime CI (repo prebuilts tak tersedia via raw)")
+    s = fetch("prebuilts_jdk21", "Android.bp")
+    if s is None:
+        return
+    if "linux_musl_arm64" in s:
+        check("javap arm64 sudah ada", True)
+        return
+    check("anchor javap linux-x86 ada", 'src: "linux-x86/bin/javap"' in s)
 
 
 # ===========================================================================
@@ -314,13 +364,72 @@ def patch_0014():
     check("anchor exec java cocok", old in s)
 
 
+def patch_0015():
+    print("\n[0015] soong/android/arch.go: Linux + Arm64")
+    s = fetch("android_build_soong", "android/arch.go")
+    if s is None:
+        return
+    mark = "arm64-host: host aarch64 juga butuh varian linux_glibc_arm64"
+    if mark in s:
+        check("arch.go sudah dipatch", True)
+        return
+    old = '\tLinux = newOsType("linux_glibc", Host, false, X86, X86_64)'
+    check("anchor Linux = newOsType(... X86, X86_64) cocok", old in s)
+
+
+def patch_0016():
+    print("\n[0016] soong/rust/config/arm_linux_host.go")
+    s = fetch("android_build_soong", "rust/config/arm_linux_host.go")
+    if s is None:
+        return
+    mark = "arm64-host: toolchain rust host glibc untuk aarch64"
+    if mark in s:
+        check("arm_linux_host.go sudah dipatch", True)
+        return
+    old = ("\tregisterToolchainFactory(android.LinuxMusl, android.Arm64, linuxMuslArm64ToolchainFactory)\n"
+           "\tregisterToolchainFactory(android.LinuxMusl, android.Arm, linuxMuslArmToolchainFactory)")
+    check("anchor registerToolchainFactory cocok", old in s)
+
+
+def patch_0017():
+    print("\n[0017] prebuilts/rust/soong/rustprebuilts.go")
+    s = fetch("prebuilts_rust", "soong/rustprebuilts.go")
+    if s is None:
+        return
+    mark = "arm64-host: prebuilt std Rust untuk host aarch64"
+    if mark in s:
+        check("rustprebuilts.go sudah dipatch", True)
+        return
+    old1 = ("\tTarget  struct {\n"
+            "\t\tLinux_glibc_x86_64 targetProps\n"
+            "\t\tLinux_glibc_x86    targetProps\n")
+    old2 = ('\t\tif ctx.Config().BuildOS == android.Linux {\n'
+            '\t\t\tp.Target.Linux_glibc_x86_64.addPrebuiltToTarget(ctx, name, rustDir, "linux-x86", "x86_64-unknown-linux-gnu", rlib, solib)\n')
+    old3 = ('\t\tif ctx.Config().BuildOS == android.Linux {\n'
+            '\t\t\tif ctx.Config().BuildArch == android.X86_64 {\n'
+            '\t\t\t\tarchTriple = "x86_64-unknown-linux-gnu"\n')
+    check("anchor #1 props.Target cocok", old1 in s)
+    check("anchor #2 constructLibProps cocok", old2 in s)
+    check("anchor #3 rustToolchainFilegroupFactory cocok", old3 in s)
+
+
 def main():
+    global ROOT
+    ap = argparse.ArgumentParser(description="Dry-run patch arm64-host.")
+    ap.add_argument("--root", help="root source tree Android (mode lokal, dipakai CI)")
+    ap.add_argument("--verbose", action="store_true", help="tampilkan detail")
+    args = ap.parse_args()
+    ROOT = os.path.abspath(args.root) if args.root else None
+
     print("=" * 66)
-    print(" DRY-RUN patch arm64-host terhadap sumber PixelOS sixteen")
+    if ROOT:
+        print(f" DRY-RUN patch arm64-host terhadap CHECKOUT: {ROOT}")
+    else:
+        print(" DRY-RUN patch arm64-host terhadap sumber PixelOS sixteen (remote)")
     print("=" * 66)
     for fn in (patch_0001, patch_0002, patch_0002b, patch_0003, patch_0004,
                patch_0005, patch_0006, patch_0007, patch_0009, patch_0012,
-               patch_0014):
+               patch_0014, patch_0015, patch_0016, patch_0017):
         try:
             fn()
         except Exception as e:

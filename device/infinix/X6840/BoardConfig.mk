@@ -52,6 +52,18 @@ BOARD_USES_RECOVERY_AS_BOOT := false
 BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := false
 
 # --- Dynamic partitions (super) ---
+# Perangkat memakai Virtual A/B: super hanya mengalokasikan satu slot;
+# slot kedua dibuat sebagai snapshot saat OTA. Karena itu group "main"
+# boleh memakai hampir seluruh super (dikurangi overhead metadata).
+# Kalau ternyata perangkat memakai A/B biasa (bukan Virtual A/B), nilai
+# BOARD_MAIN_SIZE harus <= setengah super. Verifikasi dengan:
+#   fastboot getvar current-slot
+#   adb shell getprop ro.virtual_ab.enabled   # dari vendor stok
+#
+# CATATAN PENTING: build ini TIDAK mem-flash super.img (hanya partisi logis
+# system/system_ext/product). Jadi angka di bawah tidak menulis ulang layout
+# super di perangkat; partisi stok seperti tr_region/tr_product tetap ada.
+# Angka ini relevan kalau suatu saat super.img ikut dibangun/di-flash.
 BOARD_SUPER_PARTITION_SIZE := 9663676416
 BOARD_SUPER_PARTITION_GROUPS := main
 BOARD_MAIN_SIZE := 9659482112
@@ -112,18 +124,32 @@ AB_OTA_PARTITIONS += \
     vendor_dlkm
 
 # --- AVB ---
+# PERINGATAN: kunci di bawah adalah AOSP test key (dev only).
+# Build ini BUKAN build produksi dan tidak boleh dipakai dengan
+# verified boot terkunci. Untuk kunci sendiri, timpa lewat environment
+# atau local.mk, misalnya:
+#   BOARD_AVB_KEY_PATH=/path/to/releasekey.pem
+#   BOARD_AVB_VBMETA_SYSTEM_KEY_PATH=...
+#   BOARD_AVB_VBMETA_VENDOR_KEY_PATH=...
+# (dipakai ?= supaya nilai dari environment tidak ditimpa file ini)
 BOARD_AVB_ENABLE := true
 BOARD_AVB_ALGORITHM := SHA256_RSA2048
-BOARD_AVB_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
+BOARD_AVB_KEY_PATH ?= external/avb/test/data/testkey_rsa2048.pem
 
-BOARD_AVB_VBMETA_SYSTEM := system system_ext product
-BOARD_AVB_VBMETA_SYSTEM_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
+# system_dlkm HARUS ikut vbmeta_system: fstab memasangnya dengan
+# avb=vbmeta_system. Tanpa entri ini descriptor AVB-nya tidak dibuat
+# dan mount first-stage bisa gagal.
+BOARD_AVB_VBMETA_SYSTEM := system system_ext product system_dlkm
+BOARD_AVB_VBMETA_SYSTEM_KEY_PATH ?= external/avb/test/data/testkey_rsa2048.pem
 BOARD_AVB_VBMETA_SYSTEM_ALGORITHM := SHA256_RSA2048
 BOARD_AVB_VBMETA_SYSTEM_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
 BOARD_AVB_VBMETA_SYSTEM_ROLLBACK_INDEX_LOCATION := 1
 
+# Catatan: tr_manifest TIDAK masuk daftar ini karena image-nya berasal dari
+# stok (tidak dibangun), sehingga tidak punya descriptor di vbmeta_vendor
+# hasil build. fstab karena itu tidak memakai avb= untuk tr_manifest.
 BOARD_AVB_VBMETA_VENDOR := vendor odm vendor_dlkm odm_dlkm
-BOARD_AVB_VBMETA_VENDOR_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
+BOARD_AVB_VBMETA_VENDOR_KEY_PATH ?= external/avb/test/data/testkey_rsa2048.pem
 BOARD_AVB_VBMETA_VENDOR_ALGORITHM := SHA256_RSA2048
 BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
 BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX_LOCATION := 2

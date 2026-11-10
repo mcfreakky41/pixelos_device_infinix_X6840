@@ -64,25 +64,35 @@ PRODUCT_BUILD_SUPER_PARTITION := true
 # ============================================================
 # Filesystem / fstab
 # ============================================================
-# Note: fstab.mt6768 must be copied from device tree (not vendor blobs)
-# to preserve the fixed AVB flags. Vendor blobs version would overwrite
-# with the stock version lacking custom fixes.
-# See docs/FLASHING.md section 3 for why vendor blobs must stay stock.
+# SATU-SATUNYA mekanisme pemasangan fstab: PRODUCT_COPY_FILES di sini.
+# (Dulu rootdir/Android.mk juga memasang modul dengan tujuan yang sama;
+#  itu sudah dihapus supaya tidak ada dua sumber untuk file yang sama.)
+# fstab harus berasal dari device tree (bukan vendor blobs) agar flag AVB
+# hasil perbaikan tidak tertimpa versi stok.
+# Lihat docs/FLASHING.md bagian "Mengapa vendor/odm tetap stok".
 PRODUCT_COPY_FILES += \
     $(DEVICE_PATH)/rootdir/etc/fstab.mt6768:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.mt6768
 
 # ============================================================
 # A/B OTA (Virtual A/B)
 # ============================================================
+# AB_OTA_UPDATER saja TIDAK cukup untuk mengaktifkan Virtual A/B.
+# Layout super perangkat ini hanya mengalokasikan satu slot (slot B dibuat
+# sebagai snapshot saat update), sehingga konfigurasi yang benar adalah
+# Virtual A/B. Tanpa inherit ini, build memakai aturan A/B biasa yang
+# membatasi ukuran group ke setengah super -> tidak cocok dengan
+# BOARD_MAIN_SIZE di BoardConfig.mk.
 AB_OTA_UPDATER := true
+$(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota.mk)
 
 # ============================================================
 # Inherit vendor blobs
 # ============================================================
-# Note: fstab.mt6768 is already copied from device tree (line 71).
-# Vendor blobs would provide duplicate and stale version.
-# See docs/FLASHING.md section 3.
-PRODUCT_COPY_FILES += \
-    $(call find-copy-subdir-files,*,$(LOCAL_PATH)/../../vendor/infinix/X6840/proprietary,vendor)
-
+# Semua blob dipasang lewat mapping eksplisit PRODUCT_COPY_FILES di
+# X6840-vendor.mk. JANGAN tambahkan find-copy-subdir-files di sini:
+#   - $(LOCAL_PATH) tidak didefinisikan di product makefile
+#   - ../../vendor dari device/infinix/X6840 menunjuk device/vendor
+#   - prefix tujuan "vendor" membuat vendor/vendor/... atau salah partisi
+#     (odm/vendor_dlkm ikut tercopy ke vendor)
+# fstab.mt6768 dikecualikan dari blob karena disediakan device tree.
 $(call inherit-product, vendor/infinix/X6840/X6840-vendor.mk)
