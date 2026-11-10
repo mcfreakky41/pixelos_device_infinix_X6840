@@ -60,10 +60,14 @@ Runner hanya punya ~145 GB (OS ~21 GB), sedangkan sync penuh bisa ~120 GB
 Yang diterapkan:
 - **Free disk agresif** sebelum sync (toolcache, docker, apt cache, dll.)
 - **Local manifest** membuang project x86/emulator/cuttlefish/bazel/openwrt
-  yang tidak dipakai build ARM64 (±10 GB lebih hemat)
+  serta semua test suite (CTS/VTS/MTS/robolectric/platform_testing)
+  yang tidak dipakai build ROM (±15 GB lebih hemat)
 - **`.repo` dihapus** setelah sync sebelum build
 - **Swap tidak dibuat saat sync** (baru dibuat sebelum build) → +4-6 GB headroom
 - **Retry sync tanpa `--force-sync`** agar objek tidak terduplikasi dan disk tidak habis
+- **Target build image-only** (`systemimage systemextimage productimage
+  vbmetaimage`), bukan `bacon` — tidak membangun target_files/OTA zip
+  yang memakan 10-20 GB ekstra, dan `super.img` memang tidak dipakai
 - **ccache 2 GB** dan upload artifact dibatasi (tanpa `super.img`)
 - Guard/print `df -h` di setiap tahap penting
 

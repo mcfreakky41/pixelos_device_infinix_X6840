@@ -122,6 +122,30 @@ jobs:
             <remove-project name="platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8" />
             <remove-project name="platform/prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-4.8" />
             <remove-project name="platform/external/openwrt-prebuilts" />
+            <!-- Test suites (CTS/VTS/MTS/robolectric): tidak ikut di build ROM. -->
+            <remove-project name="platform/cts" />
+            <remove-project name="platform/platform_testing" />
+            <remove-project name="platform/developers/build" />
+            <remove-project name="platform/developers/samples/android" />
+            <remove-project name="platform/external/robolectric" />
+            <remove-project name="platform/prebuilts/asuite" />
+            <remove-project name="platform/prebuilts/remoteexecution-client" />
+            <remove-project name="platform/test/app_compat/csuite" />
+            <remove-project name="platform/test/catbox" />
+            <remove-project name="platform/test/cts-root" />
+            <remove-project name="platform/test/dittosuite" />
+            <remove-project name="platform/test/mlts/benchmark" />
+            <remove-project name="platform/test/mlts/models" />
+            <remove-project name="platform/test/mts" />
+            <remove-project name="platform/test/robolectric-extensions" />
+            <remove-project name="platform/test/suite_harness" />
+            <remove-project name="platform/test/vts" />
+            <remove-project name="platform/test/vts-testcase/hal" />
+            <remove-project name="platform/test/vts-testcase/kernel" />
+            <remove-project name="platform/test/vts-testcase/nbu" />
+            <remove-project name="platform/test/vts-testcase/performance" />
+            <remove-project name="platform/test/vts-testcase/security" />
+            <remove-project name="platform/test/vts-testcase/vndk" />
           </manifest>
           XML
 
@@ -460,9 +484,18 @@ jobs:
 
           ( while true; do sleep 300; echo "[heartbeat] $(date -u) build masih jalan"; done ) &
           HB=$!
-          echo "=== MULAI mka bacon: $(date -u) ==="
+          # ------------------------------------------------------------
+          # Target image-only, BUKAN 'bacon'.
+          # 'bacon' menambah target_files + OTA zip + otatools yang
+          # memakan ~10-20 GB ekstra di out/ — tidak muat di runner
+          # 145 GB setelah source ~90 GB. README memang hanya memakai
+          # system/system_ext/product/vbmeta (super.img TIDAK dipakai).
+          # Nama target diverifikasi ada di build/make/core/main.mk.
+          # ------------------------------------------------------------
+          TARGETS="systemimage systemextimage productimage vbmetaimage"
+          echo "=== MULAI BUILD: $TARGETS ($(date -u)) ==="
           set -o pipefail
-          if ! mka bacon -j$JOBS 2>&1 | tee build.log; then
+          if ! mka $TARGETS -j$JOBS 2>&1 | tee build.log; then
             echo "=== BUILD GAGAL ==="
             tail -300 build.log
             kill $HB 2>/dev/null || true
@@ -470,6 +503,8 @@ jobs:
           fi
           kill $HB 2>/dev/null || true
           echo "=== BUILD SELESAI: $(date -u) ==="
+          echo "=== Hasil image ==="
+          ls -lh out/target/product/X6840/*.img 2>/dev/null || true
           echo "=== Disk setelah build ==="; df -h /
 
       - name: Upload ROM
