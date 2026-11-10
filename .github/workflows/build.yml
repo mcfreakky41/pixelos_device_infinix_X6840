@@ -25,22 +25,38 @@ jobs:
     timeout-minutes: 480
 
     steps:
-      - name: Free disk space (native)
+      # ============================================================
+      # 1. BEBASKAN DISK SEBANYAK MUNGKIN
+      # ------------------------------------------------------------
+      # Runner ARM64 punya ~145 GB total dan ~21 GB sudah terpakai OS.
+      # Repo sync PixelOS butuh ~120 GB (worktree + .repo), jadi margin
+      # sangat tipis. Semua yang tidak dipakai build AOSP dibuang di sini.
+      #
+      # PENTING: swap TIDAK dibuat di sini. Swap 4-6 GB akan mengurangi
+      # headroom tepat saat puncak pemakaian disk (sync). Swap dibuat
+      # setelah sync selesai, sebelum build.
+      # ============================================================
+      - name: Free disk space (aggressive)
         run: |
           set +e
-          echo "=== Disk sebelum ==="; df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL /usr/local/share/boost 2>/dev/null || true
-          sudo rm -rf /usr/share/swift /usr/local/go 2>/dev/null || true
-          sudo docker image prune -af 2>/dev/null || true
-          sudo apt-get clean 2>/dev/null || true
-          # Enable 4G swap
-          sudo fallocate -l 4G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 2>/dev/null
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile 2>/dev/null || true
-          sudo swapon /swapfile 2>/dev/null || true
-          echo "=== Disk sesudah ==="; df -h /
-          echo "=== Inodes ==="; df -ih /
+          echo "=== Disk sebelum ==="; df -h /; df -h
+          sudo rm -rf /usr/share/dotnet            || true
+          sudo rm -rf /usr/local/lib/android       || true
+          sudo rm -rf /opt/ghc /usr/local/.ghcup   || true
+          sudo rm -rf /opt/hostedtoolcache         || true
+          sudo rm -rf /usr/local/share/boost       || true
+          sudo rm -rf /opt/az /usr/share/miniconda || true
+          sudo rm -rf /usr/local/share/powershell  || true
+          sudo rm -rf /usr/local/go /usr/lib/jvm/*graalvm* || true
+          sudo rm -rf /usr/share/swift             || true
+          sudo rm -rf /usr/local/share/chromium    || true
+          sudo rm -rf /opt/microsoft               || true
+          sudo rm -rf /var/lib/docker/* /var/lib/containerd/* || true
+          sudo docker image prune -af              || true
+          sudo apt-get clean                       || true
+          sudo rm -rf /var/lib/apt/lists/*         || true
+          sudo journalctl --vacuum-size=10M        || true
+          echo "=== Disk sesudah ==="; df -h /; df -ih /
 
       - name: Checkout device tree
         uses: actions/checkout@v4
@@ -68,6 +84,14 @@ jobs:
           git config --global user.name "PixelOS Builder"
           git config --global user.email "builder@localhost"
 
+      # ============================================================
+      # 2. INIT + LOCAL MANIFEST
+      # ------------------------------------------------------------
+      # Buang proyek yang 100% tidak dipakai untuk build device arm64
+      # (kernel/emulator/cuttlefish x86, gcc host x86, bazel, openwrt).
+      # Ini memangkas worktree + .repo sekitar 10 GB sehingga puncak
+      # disk saat sync tidak lagi menyentuh 100%.
+      # ============================================================
       - name: Initialize PixelOS source
         run: |
           mkdir -p ~/android/pixelos
@@ -77,35 +101,133 @@ jobs:
             -u https://github.com/PixelOS-AOSP/manifest.git \
             -b "${{ github.event.inputs.pixelos_branch || 'sixteen' }}"
 
+          mkdir -p .repo/local_manifests
+          cat > .repo/local_manifests/drop-unused-arm64.xml <<'XML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <manifest>
+            <!-- Kernel prebuilt x86_64: device ini memakai kernel prebuilt arm64. -->
+            <remove-project name="kernel/prebuilts/6.1/x86-64" />
+            <remove-project name="kernel/prebuilts/6.6/x86-64" />
+            <remove-project name="kernel/prebuilts/6.12/x86-64" />
+            <remove-project name="kernel/prebuilts/mainline/x86-64" />
+            <remove-project name="kernel/prebuilts/common-modules/virtual-device/6.1/x86-64" />
+            <remove-project name="kernel/prebuilts/common-modules/virtual-device/6.6/x86-64" />
+            <remove-project name="kernel/prebuilts/common-modules/virtual-device/6.12/x86-64" />
+            <remove-project name="kernel/prebuilts/common-modules/virtual-device/mainline/x86-64" />
+            <!-- Emulator / Cuttlefish: tidak dipakai build device fisik. -->
+            <remove-project name="platform/prebuilts/qemu-kernel" />
+            <remove-project name="platform/prebuilts/android-emulator" />
+            <remove-project name="device/google/cuttlefish_prebuilts" />
+            <!-- Toolchain host x86_64 / Windows: tidak bisa jalan di host arm64. -->
+            <remove-project name="platform/prebuilts/bazel/linux-x86_64" />
+            <remove-project name="platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8" />
+            <remove-project name="platform/prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-4.8" />
+            <remove-project name="platform/external/openwrt-prebuilts" />
+          </manifest>
+          XML
+
+          echo ">>> Local manifest (drop-unused-arm64.xml) ditulis."
+          echo ">>> Proyek yang di-sync:"
+          repo list 2>/dev/null | wc -l || true
+
+      # ============================================================
+      # 3. SYNC
+      # ------------------------------------------------------------
+      # Percobaan 1 memakai perintah yang TERBUKTI (--force-sync).
+      # Percobaan 2 TIDAK memakai --force-sync: pada retry, --force-sync
+      # dapat mengunduh/menulis ulang objek yang sudah ada dan justru
+      # menghabiskan disk (penyebab kegagalan "No space left on device").
+      # ============================================================
       - name: Sync sources
         run: |
           cd ~/android/pixelos
-          echo "=== SYNC $(date -u) ==="
-          repo sync -c -j$(nproc --all) --force-sync \
-            --no-clone-bundle --no-tags --optimized-fetch || {
-            echo "SYNC FAILED, retrying..."; sleep 30;
-            repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags;
-          }
+          echo "=== MULAI SYNC: $(date -u) ==="
+          df -h /
+          ok=0
+          for attempt in 1 2; do
+            echo ">>> SYNC percobaan $attempt/2 ($(date -u))"
+            if [ "$attempt" = "1" ]; then
+              repo sync -c -j$(nproc --all) --force-sync \
+                --no-clone-bundle --no-tags --optimized-fetch && { ok=1; break; }
+            else
+              repo sync -c -j$(nproc --all) \
+                --no-clone-bundle --no-tags && { ok=1; break; }
+            fi
+            echo ">>> SYNC percobaan $attempt GAGAL ($(date -u))"
+            df -h / || true
+            # Bersihkan jejak parsial proyek yang umum gagal checkout pada
+            # kombinasi shallow + partial-clone, supaya retry bisa fresh.
+            for proj in external/chromium-webview external/chromiumos-config; do
+              rm -rf "$proj" ".repo/projects/$proj.git" 2>/dev/null || true
+            done
+            sleep 15
+          done
+          if [ "$ok" != "1" ]; then
+            echo "=== SYNC GAGAL setelah 2 percobaan: $(date -u) ==="
+            df -h /
+            exit 1
+          fi
           echo "=== SYNC SELESAI: $(date -u) ==="
+          df -h /
 
+      # ============================================================
+      # 4. RECLAIM
+      # ------------------------------------------------------------
+      # Build tidak butuh metadata git/.repo. Buang untuk mengembalikan
+      # puluhan GB. Sisa proyek x86 juga dibuang (jaring pengaman kalau
+      # local manifest tidak terbaca).
+      # ============================================================
       - name: Reclaim space
         run: |
           cd ~/android/pixelos
-          echo "=== Disk sebelum ==="; df -h /
+          echo "=== Disk sebelum reclaim ==="; df -h /
           find . -type d -name .git -prune -exec rm -rf {} + 2>/dev/null || true
           rm -rf .repo 2>/dev/null || true
-          echo "=== Disk sesudah ==="; df -h /
+          rm -rf kernel/prebuilts/6.1/x86_64 \
+                 kernel/prebuilts/6.6/x86_64 \
+                 kernel/prebuilts/6.12/x86_64 \
+                 kernel/prebuilts/mainline/x86_64 \
+                 kernel/prebuilts/common-modules/virtual-device/*/x86-64 \
+                 prebuilts/qemu-kernel \
+                 prebuilts/android-emulator \
+                 device/google/cuttlefish_prebuilts \
+                 prebuilts/bazel/linux-x86_64 \
+                 prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8 \
+                 prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-4.8 \
+                 external/openwrt-prebuilts 2>/dev/null || true
+          echo "=== Disk setelah reclaim ==="; df -h /
+          echo "=== Ukuran source ==="; du -sh . 2>/dev/null || true
 
-      - name: Setup Go toolchain
+      # ============================================================
+      # 5. SWAP (baru dibuat sekarang, setelah puncak disk sync lewat)
+      # ============================================================
+      - name: Enable swap (after sync)
+        run: |
+          set +e
+          sudo swapoff /swapfile 2>/dev/null
+          sudo rm -f /swapfile
+          sudo fallocate -l 6G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=6144
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h; swapon --show; df -h /
+
+      # ============================================================
+      # 6. TOOLCHAIN HOST ARM64
+      # ============================================================
+      - name: Setup Go toolchain (arm64)
         run: |
           cd ~/android/pixelos
           GOROOT_DIR="prebuilts/go/linux-arm64"
           mkdir -p prebuilts/go
           if [ ! -x "$GOROOT_DIR/bin/go" ]; then
             GOVER="go1.23.4"
-            curl -fL --retry 3 -o /tmp/go.tar.gz "https://go.dev/dl/${GOVER}.linux-arm64.tar.gz"
+            echo ">>> unduh ${GOVER}.linux-arm64.tar.gz"
+            curl -fL --retry 3 --connect-timeout 30 \
+              "https://go.dev/dl/${GOVER}.linux-arm64.tar.gz" -o /tmp/go.tar.gz
             rm -rf /tmp/goextract && mkdir -p /tmp/goextract
-            tar -C /tmp/goextract -xzf /tmp/go.tar.gz -C /tmp/goextract
+            tar -C /tmp/goextract -xzf /tmp/go.tar.gz
+            rm -rf "$GOROOT_DIR"
             mv /tmp/goextract/go "$GOROOT_DIR"
             rm -f /tmp/go.tar.gz
           fi
@@ -114,51 +236,153 @@ jobs:
           unset GOPATH GOFLAGS
           echo ">>> go version:"; go version
 
-      - name: Setup Rust toolchain
+          # Tarball Go upstream tidak berisi arsip std-lib terkompilasi di
+          # $GOROOT/pkg/linux_arm64/*.a, padahal bootstrap microfactory AOSP
+          # membutuhkannya. GODEBUG=installgoroot=all mengembalikan perilaku
+          # lama sehingga arsip .a ditulis.
+          echo ">>> [1/2] go install -a std (GODEBUG=installgoroot=all)"
+          ( cd "$GOROOT/src" && GO111MODULE=off GOPATH="$GOROOT" \
+              GODEBUG=installgoroot=all go install -a std 2>&1 | tail -10 ) || true
+          CNT=$(find "$GOROOT/pkg" -name '*.a' 2>/dev/null | wc -l)
+          echo ">>> jumlah .a: $CNT"
+          if [ "$CNT" -lt 50 ]; then
+            echo ">>> [2/2] ulangi go install std"
+            ( cd "$GOROOT/src" && GO111MODULE=off GOPATH="$GOROOT" \
+                GODEBUG=installgoroot=all go install std 2>&1 | tail -10 ) || true
+            CNT=$(find "$GOROOT/pkg" -name '*.a' 2>/dev/null | wc -l)
+            echo ">>> jumlah .a setelah retry: $CNT"
+          fi
+          if [ "$CNT" -lt 50 ]; then
+            echo "!! WARN: arsip std Go sedikit ($CNT); build mungkin gagal"
+          else
+            echo ">>> OK: arsip std Go siap"
+          fi
+
+      - name: Setup Rust toolchain (arm64)
         run: |
           cd ~/android/pixelos
           RV="1.83.0"
           TRIPLE="aarch64-unknown-linux-gnu"
           D="prebuilts/rust/linux-arm64/$RV"
-          if [ ! -x "$D/bin/rustc" ]; then
-            echo ">>> download rust $RV ($TRIPLE)"
+          LIBDIR="$D/lib/rustlib/$TRIPLE/lib"
+
+          if [ -x "$D/bin/rustc" ] && ls "$LIBDIR"/libstd-*.rlib >/dev/null 2>&1; then
+            echo ">>> rust host arm64 sudah lengkap, lewati unduhan"
+          else
+            echo ">>> unduh dist resmi rust $RV ($TRIPLE)"
             rm -rf /tmp/rustdrop /tmp/ruststage
             mkdir -p /tmp/rustdrop /tmp/ruststage
-            curl -fL --retry 3 -o /tmp/rustdrop/rust.tar.gz "https://static.rust-lang.org/dist/rust-${RV}-${TRIPLE}.tar.gz"
+            curl -fL --retry 3 -o /tmp/rustdrop/rust.tar.gz \
+              "https://static.rust-lang.org/dist/rust-${RV}-${TRIPLE}.tar.gz"
             tar xzf /tmp/rustdrop/rust.tar.gz -C /tmp/rustdrop
             SRC="/tmp/rustdrop/rust-${RV}-${TRIPLE}"
-            WANT="rustc cargo rust-std-${TRIPLE}"
+            WANT="rustc cargo rust-std-${TRIPLE} clippy-preview rustfmt-preview"
             COMPONENTS=""
             for c in $WANT; do
               if grep -qx "$c" "$SRC/components"; then
                 COMPONENTS="${COMPONENTS:+$COMPONENTS,}$c"
+              else
+                echo "    (komponen $c tidak ada di dist, dilewati)"
               fi
             done
+            case ",$COMPONENTS," in *",rustc,"*) ;; *) echo "!! komponen rustc tidak ada"; exit 1 ;; esac
+            case ",$COMPONENTS," in *",rust-std-${TRIPLE},"*) ;; *) echo "!! rust-std tidak ada"; exit 1 ;; esac
             ( cd "$SRC" && sh ./install.sh --prefix=/tmp/ruststage --disable-ldconfig --components="$COMPONENTS" )
             mkdir -p "$D"
             cp -a /tmp/ruststage/. "$D/"
             rm -rf /tmp/rustdrop /tmp/ruststage
           fi
-          echo ">>> rustc:"; "$D/bin/rustc" --version
 
-      - name: Setup Clang
+          # rust-src adalah artefak dist terpisah (opsional).
+          if [ ! -d "$D/lib/rustlib/src/rust/library" ]; then
+            echo ">>> coba pasang rust-src (opsional)"
+            rm -rf /tmp/rustsrc /tmp/ruststage_src
+            mkdir -p /tmp/rustsrc /tmp/ruststage_src
+            if curl -fL --retry 3 -o /tmp/rustsrc/src.tar.gz "https://static.rust-lang.org/dist/rust-src-${RV}.tar.gz" \
+               && tar xzf /tmp/rustsrc/src.tar.gz -C /tmp/rustsrc \
+               && ( cd "/tmp/rustsrc/rust-src-${RV}" && sh ./install.sh --prefix=/tmp/ruststage_src --disable-ldconfig ) \
+               && cp -a /tmp/ruststage_src/. "$D/"; then
+              echo "    OK  : rust-src terpasang"
+            else
+              echo "    WARN: rust-src tidak terpasang (opsional, lanjutkan)"
+            fi
+            rm -rf /tmp/rustsrc /tmp/ruststage_src
+          fi
+
+          # lib64/* dipakai toolchain_deps rustc; dist resmi tidak punya
+          # libc++.so/libunwind.so, jadi cukup librustc_driver sebagai symlink.
+          mkdir -p "$D/lib64"
+          if ! ls "$D/lib64"/* >/dev/null 2>&1; then
+            ( cd "$D/lib64" && ln -sf ../lib/librustc_driver-*.so . ) || true
+            for l in "$D/lib64"/*; do [ -e "$l" ] || rm -f "$l"; done
+          fi
+
+          "$D/bin/rustc" --version || { echo "!! bin/rustc tidak bisa jalan"; exit 1; }
+          ls "$D/lib64"/* >/dev/null 2>&1 \
+            && echo "    OK  : lib64/ tidak kosong" \
+            || { echo "    !! lib64/ kosong"; exit 1; }
+
+          n_rlib=$(ls "$LIBDIR"/libstd-*.rlib 2>/dev/null | wc -l)
+          n_so=$(ls "$LIBDIR"/libstd-*.so 2>/dev/null | wc -l)
+          echo ">>> libstd: rlib=$n_rlib so=$n_so"
+          if [ "$n_rlib" != "1" ] || [ "$n_so" != "1" ]; then
+            echo "!! getPrebuilt() butuh TEPAT 1 libstd-*.rlib dan 1 libstd-*.so"
+            exit 1
+          fi
+          echo ">>> OK: rust host arm64 siap"
+
+      - name: Setup Clang (arm64)
         run: |
           cd ~/android/pixelos
           CLANG_DIR="prebuilts/clang/host/linux-arm64"
           if [ ! -x "$CLANG_DIR/clang-r584948b/bin/clang" ]; then
             mkdir -p "$CLANG_DIR"
+            echo ">>> clone branch mirror-goog-main-prebuilts (sparse)"
+            rm -rf /tmp/clangarm
             git clone --depth=1 --filter=blob:none --sparse \
               -b mirror-goog-main-prebuilts \
               https://android.googlesource.com/platform/prebuilts/clang/host/linux-arm64 \
               /tmp/clangarm 2>&1 | tail -3
-            cd /tmp/clangarm && git sparse-checkout set clang-r584948b 2>&1 | tail -2
+            ( cd /tmp/clangarm && git sparse-checkout set clang-r584948b 2>&1 | tail -2 )
             rm -rf "$CLANG_DIR/clang-r584948b"
             mv /tmp/clangarm/clang-r584948b "$CLANG_DIR/clang-r584948b"
             rm -rf /tmp/clangarm
           fi
-          ln -sfn clang-r584948b "$CLANG_DIR/clang-r547379"
-          ln -sfn clang-r584948b "$CLANG_DIR/clang-r584948"
+          # Tree mencari clang-r547379 (LLVM 20); arm64 hanya punya r584948b
+          # (LLVM 22). Symlink nama + versi RTLIB supaya path tetap resolve.
+          for V in clang-r547379 clang-r584948; do
+            ln -sfn clang-r584948b "$CLANG_DIR/$V"
+          done
           ln -sfn 22 "$CLANG_DIR/clang-r584948b/lib/clang/20"
+          "$CLANG_DIR/clang-r584948b/bin/clang" --version | head -2 || true
+          du -sh "$CLANG_DIR" 2>/dev/null || true
+
+      - name: Setup JDK 8 (arm64, host tools)
+        run: |
+          cd ~/android/pixelos
+          JDK8_DIR="prebuilts/jdk/jdk8/linux-arm64"
+          if [ -x "$JDK8_DIR/bin/java" ] && [ -f "$JDK8_DIR/jre/lib/rt.jar" ]; then
+            echo ">>> JDK 8 arm64 sudah ada, lewati"
+            "$JDK8_DIR/bin/java" -version 2>&1 | head -1 || true
+            exit 0
+          fi
+          mkdir -p "$JDK8_DIR"
+          echo ">>> unduh JDK 8 arm64 (Adoptium Temurin)"
+          curl -fL --retry 3 -o /tmp/jdk8.tar.gz \
+            "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u504-b01/OpenJDK8U-jdk_aarch64_linux_hotspot_8u504b01.tar.gz"
+          rm -rf /tmp/jdk8extract && mkdir -p /tmp/jdk8extract
+          tar -xzf /tmp/jdk8.tar.gz -C /tmp/jdk8extract
+          JDK8_SRC=$(find /tmp/jdk8extract -maxdepth 1 -name "jdk*" -type d | head -1)
+          [ -n "$JDK8_SRC" ] || { echo "!! direktori JDK tidak ditemukan"; exit 1; }
+          cp -a "$JDK8_SRC/." "$JDK8_DIR/"
+          mkdir -p "$JDK8_DIR/jre/lib"
+          for jar in rt.jar jce.jar jsse.jar charsets.jar; do
+            [ -f "$JDK8_DIR/lib/$jar" ] && cp "$JDK8_DIR/lib/$jar" "$JDK8_DIR/jre/lib/"
+          done
+          cp -r "$JDK8_DIR/lib/"* "$JDK8_DIR/jre/lib/" 2>/dev/null || true
+          rm -rf /tmp/jdk8.tar.gz /tmp/jdk8extract
+          "$JDK8_DIR/bin/java" -version 2>&1 | head -3
+          ls -la "$JDK8_DIR/jre/lib/" | head -10
 
       - name: Setup JDK 21
         uses: actions/setup-java@v4
@@ -166,6 +390,9 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # ============================================================
+      # 7. DEVICE TREE + BLOBS + PATCHES
+      # ============================================================
       - name: Clone device + vendor tree
         run: |
           cd ~/android/pixelos
@@ -174,41 +401,77 @@ jobs:
           cp -r "$GITHUB_WORKSPACE/device-tree/device/infinix/X6840" device/infinix/X6840
           cp -r "$GITHUB_WORKSPACE/device-tree/vendor/infinix/X6840" vendor/infinix/X6840
 
-      - name: Apply ARM64 patches
+      - name: Apply ARM64 host patches
         run: |
           cd ~/android/pixelos
-          bash "$GITHUB_WORKSPACE/device-tree/scripts/apply-arm64-host.sh" "$PWD"
+          bash "$GITHUB_WORKSPACE/device-tree/scripts/apply-arm64-host.sh" "$PWD" || true
+          echo ">>> verifikasi cepat:"
+          grep -n "HOST_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_ARCH arm64 TIDAK ada"
+          grep -n "HOST_PREBUILT_ARCH := arm64" build/make/core/envsetup.mk || echo "    !! HOST_PREBUILT_ARCH arm64 TIDAK ada"
+          [ -f build/make/core/clang/HOST_arm64.mk ] && echo "    OK  : HOST_arm64.mk" || echo "    !! HOST_arm64.mk tidak ada"
+
+      - name: Fix source tree (PixelOS sixteen)
+        run: |
+          cd ~/android/pixelos
+          bash "$GITHUB_WORKSPACE/device-tree/scripts/fix-source-tree.sh"
 
       - name: Fetch vendor blobs
         run: |
           cd ~/android/pixelos
           bash "$GITHUB_WORKSPACE/device-tree/scripts/fetch-blobs.sh" \
             vendor/infinix/X6840/proprietary
-          echo "Blobs downloaded: $(find vendor/infinix/X6840/proprietary -type f | wc -l) files"
+          echo "Jumlah file blob: $(find vendor/infinix/X6840/proprietary -type f | wc -l)"
+          du -sh vendor/infinix/X6840/proprietary
 
+      # ============================================================
+      # 8. BUILD
+      # ============================================================
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: pixelos-X6840-${{ github.sha }}
-          max-size: 5G
+          key: pixelos-X6840-${{ github.ref }}
+          # Runner disk terbatas; out/ AOSP sendiri bisa 30-40 GB.
+          max-size: 2G
 
       - name: Build
         run: |
           cd ~/android/pixelos
-          echo "=== Disk: $(df -h / | tail -1) ==="
+          echo "=== Disk sebelum build ==="; df -h /
           export LLVM_PREBUILTS_VERSION=clang-r584948b
           export LLVM_RELEASE_VERSION=22
+          echo ">>> Clang override: version=$LLVM_PREBUILTS_VERSION short=$LLVM_RELEASE_VERSION"
+
+          source build/envsetup.sh
           export CCACHE_EXEC=$(which ccache)
           export USE_CCACHE=1
-          ccache -M 5G
-          # Optimize for memory: limit jobs to avoid OOM
-          export JOBS=$({ nproc --all | awk '{print int($1/2)}'; })
-          echo "=== Build: -j$JOBS (reduced for memory) ==="
+          export CCACHE_DIR=/home/runner/.ccache
+          ccache -M 2G
+
+          # Runner 4 vCPU / 16 GB. -j3 + swap 6 GB = kompromi aman antara
+          # kecepatan dan risiko OOM.
+          JOBS=3
+          echo "Memakai -j$JOBS (nproc=$(nproc --all))"
+
+          echo "=== LUNCH: $(date -u) ==="
           lunch pixelos_X6840 bp2a ${{ github.event.inputs.build_type || 'userdebug' }}
-          [ -n "$TARGET_PRODUCT" ] || { echo "LUNCH FAILED"; exit 1; }
-          # Increase memory limit for Go build
-          ulimit -v unlimited 2>/dev/null || true
-          mka bacon -j$JOBS 2>&1 | tee build.log
+          echo "TARGET_PRODUCT=$TARGET_PRODUCT"
+          echo "TARGET_BUILD_VARIANT=$TARGET_BUILD_VARIANT"
+          echo "TARGET_DEVICE=$TARGET_DEVICE"
+          [ -n "$TARGET_PRODUCT" ] || { echo ">>> TARGET_PRODUCT kosong: lunch gagal"; exit 1; }
+
+          ( while true; do sleep 300; echo "[heartbeat] $(date -u) build masih jalan"; done ) &
+          HB=$!
+          echo "=== MULAI mka bacon: $(date -u) ==="
+          set -o pipefail
+          if ! mka bacon -j$JOBS 2>&1 | tee build.log; then
+            echo "=== BUILD GAGAL ==="
+            tail -300 build.log
+            kill $HB 2>/dev/null || true
+            exit 1
+          fi
+          kill $HB 2>/dev/null || true
+          echo "=== BUILD SELESAI: $(date -u) ==="
+          echo "=== Disk setelah build ==="; df -h /
 
       - name: Upload ROM
         if: success()
@@ -217,8 +480,11 @@ jobs:
           name: PixelOS-X6840-${{ github.run_number }}
           path: |
             /home/runner/android/pixelos/out/target/product/X6840/*.zip
-            /home/runner/android/pixelos/out/target/product/X6840/*.img
-            if-no-files-found: warn
+            /home/runner/android/pixelos/out/target/product/X6840/system.img
+            /home/runner/android/pixelos/out/target/product/X6840/system_ext.img
+            /home/runner/android/pixelos/out/target/product/X6840/product.img
+            /home/runner/android/pixelos/out/target/product/X6840/vbmeta*.img
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload build log

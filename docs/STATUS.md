@@ -15,7 +15,7 @@
 | Runner | **ubuntu-24.04-arm** (native arm64 build) |
 | Target | **PixelOS `sixteen` (Android 16)** |
 | Release config | **bp2a** (PixelOS sixteen) |
-| Build terkini | Run #70+ - **GAGAL: No space on device** (runner disk penuh) |
+| Build terkini | Workflow disk-fix siap dijalankan ulang (lihat bagian *Perbaikan Disk*) |
 | Panduan flash | 📄 [docs/FLASHING.md](FLASHING.md) |
 
 ---
@@ -48,10 +48,24 @@
 - **sepolicy:** Hapus tipe tidak terpakai (vendor_mtk_prop, transsion_service)
 
 ### CI Workflow (`.github/workflows/build.yml`)
-- `JOBS=$((nproc/2))` - Kurangi parallelism untuk menghindari OOM
+- Build `-j3` pada runner 4 vCPU / 16 GB, swap 6 GB dibuat **setelah** sync
 - `ulimit -v unlimited` - Tingkatkan memory limit
-- Swap 4G diaktifkan
 - Build log di-upload meskipun gagal
+- Toolchain host ARM64 lengkap: Go (`go install std`), Rust (lib64 + rust-src), Clang r584948b, JDK 8 & 21
+
+### 💾 Perbaikan Disk (`No space left on device`)
+Runner hanya punya ~145 GB (OS ~21 GB), sedangkan sync penuh bisa ~120 GB
+(worktree 91 GB + `.repo` ~29 GB) sehingga menyisakan < 5 GB.
+
+Yang diterapkan:
+- **Free disk agresif** sebelum sync (toolcache, docker, apt cache, dll.)
+- **Local manifest** membuang project x86/emulator/cuttlefish/bazel/openwrt
+  yang tidak dipakai build ARM64 (±10 GB lebih hemat)
+- **`.repo` dihapus** setelah sync sebelum build
+- **Swap tidak dibuat saat sync** (baru dibuat sebelum build) → +4-6 GB headroom
+- **Retry sync tanpa `--force-sync`** agar objek tidak terduplikasi dan disk tidak habis
+- **ccache 2 GB** dan upload artifact dibatasi (tanpa `super.img`)
+- Guard/print `df -h` di setiap tahap penting
 
 ---
 
