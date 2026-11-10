@@ -6,22 +6,16 @@
 
 DEVICE_PATH := device/infinix/X6840
 
-# --- API ---
-# Target ROM = Android 16 (PixelOS branch sixteen), jadi shipping level 36.
-# (Vendor stok API 35, tapi GSI A16 terbukti boot di device ini.)
+# ============================================================
+# API & Platform
+# ============================================================
+# Target ROM = Android 16 (PixelOS branch sixteen, API 36)
+# Vendor stok device ini masih Android 15 (API 35), tapi A16 compatible
 PRODUCT_SHIPPING_API_LEVEL := 36
 
-# --- A/B + dynamic partitions + emulated storage ---
-# Catatan: 'launcher.mk' TIDAK ADA di PixelOS sixteen (error run #19:
-#   device.mk:15: build/make/target/product/virtual_ab_ota/launcher.mk does not exist).
-# File yang benar = 'launch_with_vendor_ramdisk.mk' karena X6840 launch dengan
-# Virtual A/B DAN punya partisi vendor_boot (menurut komentar AOSP, varian ini
-# lebih dipilih daripada launch.mk). Ia menyiapkan linker/e2fsck/fsck.f2fs
-# untuk vendor_ramdisk.
-$(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota/launch_with_vendor_ramdisk.mk)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/emulated_storage.mk)
-
-# --- SoC / hardware properties ---
+# ============================================================
+# Platform Properties
+# ============================================================
 PRODUCT_SYSTEM_PROPERTIES += \
     ro.board.platform=mt6768 \
     ro.hardware=mt6768 \
@@ -30,7 +24,9 @@ PRODUCT_SYSTEM_PROPERTIES += \
     ro.hardware.hwcomposer=mtk_common \
     ro.hardware.gatekeeper=trustonic
 
-# --- Dalvik / ART tuning (device 4GB RAM) ---
+# ============================================================
+# Dalvik / ART tuning (device 4GB RAM)
+# ============================================================
 PRODUCT_SYSTEM_PROPERTIES += \
     dalvik.vm.heapstartsize=8m \
     dalvik.vm.heapgrowthlimit=192m \
@@ -39,30 +35,47 @@ PRODUCT_SYSTEM_PROPERTIES += \
     dalvik.vm.heapminfree=2m \
     dalvik.vm.heapmaxfree=8m
 
-# --- Display (HD+ 720x1640 -> density 320) ---
+# ============================================================
+# Display
+# ============================================================
 PRODUCT_SYSTEM_PROPERTIES += \
     ro.sf.lcd_density=320
 
-# --- Telephony (DSDS + VoLTE, MTK IMS) ---
+# ============================================================
+# Telephony (DSDS + VoLTE, MTK IMS)
+# ============================================================
 PRODUCT_SYSTEM_PROPERTIES += \
     persist.vendor.radio.msimmode=dsds \
     ro.telephony.default_network=9,9 \
     persist.dbg.ims_volte_enable=1
 
-# --- Media / codec ---
+# ============================================================
+# Media / codec
+# ============================================================
 PRODUCT_SYSTEM_PROPERTIES += \
     debug.stagefright.omx_default_rank=0
 
-# --- Dynamic partitions: only A/B, logical in super ---
+# ============================================================
+# Dynamic partitions
+# ============================================================
 PRODUCT_USE_DYNAMIC_PARTITIONS := true
 PRODUCT_BUILD_SUPER_PARTITION := true
 
-# --- Filesystem / fstab ---
+# ============================================================
+# Filesystem / fstab
+# ============================================================
 PRODUCT_COPY_FILES += \
     $(DEVICE_PATH)/rootdir/etc/fstab.mt6768:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.mt6768
 
-# --- A/B OTA (Virtual A/B) ---
+# ============================================================
+# A/B OTA (Virtual A/B)
+# ============================================================
 AB_OTA_UPDATER := true
 
-# --- Inherit vendor blobs ---
+# ============================================================
+# Inherit vendor blobs
+# ============================================================
+PRODUCT_COPY_FILES += \
+    $(call find-copy-subdir-files,*,$(LOCAL_PATH)/../../vendor/infinix/X6840/proprietary,vendor)
+
 $(call inherit-product, vendor/infinix/X6840/X6840-vendor.mk)
