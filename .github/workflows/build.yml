@@ -153,7 +153,7 @@ jobs:
               /tmp/clangarm 2>&1 | tail -3
             cd /tmp/clangarm && git sparse-checkout set clang-r584948b 2>&1 | tail -2
             rm -rf "$CLANG_DIR/clang-r584948b"
-            mv /tmp/clangarm/clang-r5848b "$CLANG_DIR/clang-r584948b"
+            mv /tmp/clangarm/clang-r584948b "$CLANG_DIR/clang-r584948b"
             rm -rf /tmp/clangarm
           fi
           ln -sfn clang-r584948b "$CLANG_DIR/clang-r547379"
@@ -193,7 +193,6 @@ jobs:
           max-size: 5G
 
       - name: Build
-        continue-on-error: true
         run: |
           cd ~/android/pixelos
           echo "=== Disk: $(df -h / | tail -1) ==="
@@ -202,14 +201,14 @@ jobs:
           export CCACHE_EXEC=$(which ccache)
           export USE_CCACHE=1
           ccache -M 5G
-          export JOBS=$(nproc --all)
-          echo "=== Build: -j$JOBS ==="
+          # Optimize for memory: limit jobs to avoid OOM
+          export JOBS=$({ nproc --all | awk '{print int($1/2)}'; })
+          echo "=== Build: -j$JOBS (reduced for memory) ==="
           lunch pixelos_X6840 bp2a ${{ github.event.inputs.build_type || 'userdebug' }}
           [ -n "$TARGET_PRODUCT" ] || { echo "LUNCH FAILED"; exit 1; }
-          ( while true; do sleep 300; echo "[heartbeat] $(date -u)"; done ) &
-          HB=$!
-          mka bacon -j$JOBS 2>&1 | tee build.log | grep -v "Warning:"
-          kill $HB 2>/dev/null || true
+          # Increase memory limit for Go build
+          ulimit -v unlimited 2>/dev/null || true
+          mka bacon -j$JOBS 2>&1 | tee build.log
 
       - name: Upload ROM
         if: success()
