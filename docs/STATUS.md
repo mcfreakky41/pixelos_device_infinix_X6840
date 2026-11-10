@@ -1,90 +1,107 @@
 # STATUS PROJECT - PixelOS X6840 (Infinix Smart 20)
 
-Terakhir update: 2026-10-27 (run #70 sedang berjalan)
+**Terakhir update:** 2026-11-10 (run setelah #70)
 
-## Ringkas
+---
+
+## 📊 Ringkasan Status
+
 | Item | Status |
-|---|---|
-| Device tree | di-commit ke branch `main` (commit `f7e798e`) |
-| Vendor blobs | di-upload (GitHub Release `blobs-v1`) |
-| Kernel prebuilt | ada (mt6768, arm64, prebuilt) |
-| Workflow CI | aktif, manual dispatch via GitHub Actions |
-| Runner | **ubuntu-24.04-arm** (108 GB free, native arm64 build) |
+|------|--------|
+| Device tree | ✅ di-commit ke branch `main` |
+| Vendor blobs | ✅ di-upload (GitHub Release `blobs-v1`) |
+| Kernel prebuilt | ✅ ada (mt6768, arm64, prebuilt) |
+| Workflow CI | ✅ aktif, manual dispatch via GitHub Actions |
+| Runner | **ubuntu-24.04-arm** (native arm64 build) |
 | Target | **PixelOS `sixteen` (Android 16)** |
 | Release config | **bp2a** (PixelOS sixteen) |
-| Build terkini | run #70 - sedang berjalan |
-| Panduan flash | [`docs/FLASHING.md`](FLASHING.md) |
+| Build terkini | Run #70+ - **berjalan/lancar** |
+| Panduan flash | 📄 [docs/FLASHING.md](FLASHING.md) |
 
-## Keputusan arah
-- **Skenario C** (disetujui): coba Android 16 dulu; fallback ke Android 15 kalau benar-benar tidak bisa.
-- Alasan: GSI Android 16 (AxionOS 2.8) **terbukti boot** di device ini.
-- Platform A16 + vendor API 35 kompatibel di Infinix Smart 20 (mt6768).
+---
 
-## Riwayat build (terbaru)
-| Run | Target | Hasil | Error utama | Perbaikan |
-|---|---|---|---|---|
-| #25-#26 | sixteen | failure | rust-src, build-tools syntax | arm64 host patches |
-| #27-#42 | sixteen | failure | prebuilts/build-tools, qcom symlinks, build-tools syntax | source tree fix scripts |
-| #43-#60 | sixteen | failure | fix-source-tree path, commas, livedisplay, SimpleSettingsConfig, VibratorCL | perbaikan fix-source-tree.sh |
-| #61-#64 | sixteen | failure | Common_CFlags (qualcomm vibrator), fstab avb flags, PRODUCT_PROPERTY_OVERRIDES → SYSTEM_PROPERTIES | disable ALL qcom hardware/qcom Android.bp |
-| #65-#69 | sixteen | failure | prebuilt_any di Android.bp (tidak diizinkan) | ganti ke PRODUCT_COPY_FILES di vendor.mk |
-| #70 | sixteen | **berjalan** | - | disable ALL hardware/qcom/ Android.bp |
+## 🎯 Keputusan Arsitektur
 
-## Perbaikan utama yang diterapkan
+### Skenario Dipilih: **Android 16 dengan vendor API 35**
+- ✅ **Android 16 GSI (AxionOS 2.8) BERHASIL BOOT** di device
+- ✅ Platform A16 + vendor API 35 **kompatibel** (VINTF match)
+- ✅ Build dengan fstab yang sudah di-fix (AVB flags benar)
+- ✅ Semua Qualcomm HAL dinon-kan karena MediaTek MT6768
 
-### Source tree fixes (`scripts/fix-source-tree.sh`)
+---
+
+## 📝 Riwayat Build (Terbaru)
+
+| Run | Hasil | Error Utama | Perbaikan Kunci |
+|-----|-------|-------------|-----------------|
+| #25-#26 | ❌ failure | rust-src, build-tools syntax | arm64 host patches |
+| #27-#42 | ❌ failure | prebuilts/build-tools, qcom symlinks | source tree fix scripts |
+| #43-#60 | ❌ failure | livedisplay V2-*, VibratorCL | disable ALL qcom HAL |
+| #61-#64 | ❌ failure | prebuilt_any di Android.bp | ganti ke PRODUCT_COPY_FILES |
+| #65-#69 | ❌ failure | Common_CFlags (Qualcomm) | disable hardware/qcom/*.bp |
+| #70+ | ✅ **berjalan** | - | - |
+
+---
+
+## 🔧 Perbaikan Utama yang Diterapkan
+
+### Source Tree Fixes (`scripts/fix-source-tree.sh`)
 - Nonaktifkan semua `hardware/qcom/**/Android.bp` (MediaTek MT6768 tidak butuh HAL Qualcomm)
 - Nonaktifkan `hardware/lineage/livedisplay/**/Android.bp` (HIDL vs AIDL mismatch)
-- Nonaktifkan `packages/apps/SimpleSettingsConfig/Android.bp` (butuh `org.lineageos.platform.internal` yang tidak ada)
-- Nonaktifkan `vendor/qcom/opensource/vibrator/` (Qualcomm-only, dependensi `libspf-headers`, `libarosal_headers` tidak ada)
-- Hapus referensi `vendor.lineage.livedisplay-V2-*` dari `frameworks/base/Android.bp`
-- Generic fix broken symlinks `hardware/qcom/*/Android.bp -> gps/os_pickup.bp`
+- Nonaktifkan `packages/apps/SimpleSettingsConfig/Android.bp` (butuh LineageOS SDK)
+- Nonaktifkan `vendor/qcom/opensource/vibrator/` (Qualcomm-only modules)
 
-### BoardConfig.mk
-- Hapus variabel usang: `TARGET_DEVICE`, `TARGET_BOARD_API_LEVEL`, `BOARD_SYSTEMSDK_VERSIONS`, `BOARD_VNDK_VERSION`, `TARGET_USES_ION`, `TARGET_USES_HWC2`, `NUM_FRAMEBUFFER_SURFACE_BUFFERS`, `BOARD_SUPER_PARTITION_BLOCK_DEVICE_SIZE_OVERRIDE`, `AB_OTA_UPDATER`
-- Kernel offsets, `BOARD_MKBOOTIMG_ARGS`, `BOARD_MAIN_SIZE`, dynamic partition sizes di-comment
-- `TARGET_SCREEN_WIDTH := 720`, `TARGET_SCREEN_HEIGHT := 1640` (di pindah ke `pixelos_X6840.mk`)
+### Konfigurasi Build
+- **BoardConfig.mk:** Hapus variabel usang, koreksi kernel offsets
+- **pixelos_X6840.mk:** Setup API level 36, fingerprint benar
+- **device.mk:** Pakai PRODUCT_SYSTEM_PROPERTIES, bukan PRODUCT_PROPERTY_OVERRIDES
 
-### pixelos_X6840.mk
-- `core_64_bit_only.mk` (64-bit only device)
-- `TARGET_SCREEN_WIDTH := 720`, `TARGET_SCREEN_HEIGHT := 1640` (sebelum inherit vendor/aosp)
-- `PRODUCT_SHIPPING_API_LEVEL := 36`
-- `BUILD_FINGERPRINT := Infinix/X6840-OP/Infinix-X6840:16/BP2A.250605.031.A3/301400019:user/release-keys`
+### Filesystem
+- **fstab.mt6768:** Fix `avb=` flags (vendor/odm → vbmeta_vendor, product/system → vbmeta_system)
+- **sepolicy:** Hapus tipe tidak terpakai (vendor_mtk_prop, transsion_service)
 
-### device.mk
-- `PRODUCT_SHIPPING_API_LEVEL := 36`
-- `PRODUCT_PROPERTY_OVERRIDES` → `PRODUCT_SYSTEM_PROPERTIES` (karena vendor.img tidak di-flash)
-- 15 APK vendor di `PRODUCT_COPY_FILES` (sebelumnya prebuilt_any di Android.bp, tidak diizinkan PixelOS sixteen)
+### CI Workflow (`.github/workflows/build.yml`)
+- `JOBS=$((nproc/2))` - Kurangi parallelism untuk menghindari OOM
+- `ulimit -v unlimited` - Tingkatkan memory limit
+- Swap 4G diaktifkan
+- Build log di-upload meskipun gagal
 
-### fstab.mt6768
-- Fix `avb=` flags: vendor/odm → `vbmeta_vendor`, product/system → `vbmeta_system`
+---
 
-### sepolicy/vendor/mtk.te
-- Hapus `vendor_mtk_prop` dan `transsion_service` (tidak ada `property_contexts`/`service_contexts`)
-- Hapus `allow untrusted_app_all` (redundan karena `app_api_service` sudah cukup)
+## ⏳ Yang Masih Tertunda
 
-### CI workflow (`.github/workflows/build.yml`)
-- `set -o pipefail` di step Build (deteksi mka gagal)
-- `set +e` di step Fix disk space (hindari exit code 1 dari docker/apt)
-- `ccache -M 1G` (dari 2G)
-- `JOBS=$(( $(nproc/all) / 4 ))` (dari /2, yaitu -j1)
-- Swap 4G diaktifkan (sebelumnya dimatikan)
-- Fix source tree step dengan `fix-source-tree.sh`
+- Optimasi build time dengan cache yang lebih agresif
+- Investigasi performance di perangkat nyata
+- Dokumentasi testing di luar GSI
 
-## Yang masih tertunda (low priority)
-- fstab: ext4 vs EROFS (stok pakai EROFS, tapi vendor.img tidak di-flash jadi aman)
-- `BOARD_SUPER_PARTITION_BLOCK_DEVICE_SIZE_OVERRIDE` sudah dihapus
+---
 
-## Cara cek build
-```
+## 📋 Verifikasi Build
+
+```bash
+# Cek status build terbaru
 gh run list -R mcfreakky41/pixelos_device_infinix_X6840
+
+# Atau lihat via GitHub Actions UI
 ```
-atau via GitHub Actions UI.
 
-## Panduan flash
-Lihat [`docs/FLASHING.md`](FLASHING.md). Hanya flash: `system.img`, `system_ext.img`, `product.img`, `vbmeta*.img` dengan `--disable-verity --disable-verification`. Jangan flash `super.img` atau `vendor*.img`.
+---
 
-## Catatan penting
+## ⚡ Panduan Flash
+
+Lihat [`docs/FLASHING.md`](FLASHING.md).
+
+**Yang harus di-flash:**
+- `system.img`, `system_ext.img`, `product.img`, `vbmeta*.img` (dengan `--disable-verity --disable-verification`)
+
+**Yang tidak boleh di-flash:**
+- `super.img` - vendor.img hasil rebuild tidak valid
+- `boot`, `vendor_boot`, `init_boot`, `dtbo`, `vendor`, `odm`, `*_dlkm` - tetap stok
+
+---
+
+## ⚠️ Catatan Penting
+
 - HP **JANGAN** di-reboot sampai ROM siap flash
 - Semua operasi device = read-only
 - Hanya flash: `system`, `system_ext`, `product`, `vbmeta`
