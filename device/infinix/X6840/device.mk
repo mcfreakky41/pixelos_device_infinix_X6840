@@ -46,7 +46,7 @@ PRODUCT_SYSTEM_PROPERTIES += \
 # ============================================================
 PRODUCT_VENDOR_PROPERTIES += \
     persist.vendor.radio.msimmode=dsds \
-    persist.dbg.ims_volte_enable=1
+    persist.vendor.dbg.ims_volte_enable=1
 
 PRODUCT_SYSTEM_PROPERTIES += \
     ro.telephony.default_network=9,9

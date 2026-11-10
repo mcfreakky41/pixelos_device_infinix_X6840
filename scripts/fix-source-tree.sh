@@ -166,23 +166,33 @@ if [ -f "$VBP" ]; then
 import re, sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
-targets = [
-    "custom_generator generated_kernel_includes",
-    "custom_generator prebuilt_kernel_includes",
-    "cc_defaults generated_kernel_header_defaults",
-    "cc_defaults prebuilt_kernel_header_defaults",
-    "cc_library_headers generated_kernel_headers",
-    "cc_library_headers qti_kernel_headers",
-    "cc_library_headers prebuilt_kernel_headers",
-]
+# Setiap entry: (module_type, [nama modul yang BERNAMA bermuatan Make])
+targets = {
+    "custom_generator": ["generated_kernel_includes", "prebuilt_kernel_includes"],
+    "cc_defaults": ["generated_kernel_header_defaults", "prebuilt_kernel_header_defaults"],
+    "cc_library_headers": ["generated_kernel_headers", "qti_kernel_headers", "prebuilt_kernel_headers"],
+}
 removed = []
-for t in targets:
-    kind, name = t.split(None, 1)
+for kind, names in targets.items():
     pat = re.compile(r'(?ms)^' + re.escape(kind) + r' \{\n.*?\n\}\n')
-    m = pat.search(s)
-    if m:
-        s = s[:m.start()] + s[m.end():]
-        removed.append(t)
+    ms = list(pat.finditer(s))
+    if not ms:
+        continue
+    parts = []
+    last = 0
+    hit = False
+    for m in ms:
+        blk = m.group(0)
+        nm = re.search(r'name:\s*"([^"]+)"', blk)
+        if nm and nm.group(1) in names:
+            parts.append(s[last:m.start()])
+            last = m.end()
+            removed.append(kind + ":" + nm.group(1))
+            hit = True
+    parts.append(s[last:])
+    s = "".join(parts)
+    if not hit:
+        print("  OK  : tidak ada blok " + kind + " bermuatan Make yang cocok")
 if removed:
     open(p, "w", encoding="utf-8").write(s)
     print("  OK  : modul bermuatan Make dihapus spesifik:")

@@ -131,25 +131,39 @@ khusus atau dump firmware stok sebelum lanjut.
 ```bash
 # Pastikan perangkat boot normal dan terdeteksi
 adb devices
-adb shell getprop ro.boot.slot_suffix      # mis. _a
+adb shell getprop ro.boot.slot_suffix      # mis. _a (slot aktif)
 adb shell su -c 'ls -l /dev/block/mapper/' # partisi logical ada
 adb shell su -c 'ls -l /dev/block/by-name/' # partisi emmc/raw ada
+
+# Slot aktif (A/B). Partisi yang direkam pakai flag slotselect di fstab
+# (system/system_ext/product/boot/vbmeta_system/vbmeta_vendor/tr_*) wajib
+# pakai suffix slot (_a/_b). Partisi tanpa slotselect (vbmeta, init_boot,
+# vendor_boot, dtbo, dll) memakai nama polos.
+SLOT="$(adb shell getprop ro.boot.slot_suffix | tr -d '[:space:]')"
+[ -n "$SLOT" ] || SLOT="_a"
+echo ">>> Slot aktif: ${SLOT:-_a}"
 
 # Siapkan folder backup
 mkdir -p backup-x6840
 
 # Backup partisi LOGICAL (dynamic) yang di-mount via /dev/block/mapper/
+# (entry dengan slotselect di fstab.mt6768)
 for p in system system_ext product; do
   echo ">>> backup $p"
-  adb shell su -c "dd if=/dev/block/mapper/${p}_a of=/sdcard/backup-${p}.img bs=4M"
+  adb shell su -c "dd if=/dev/block/mapper/${p}${SLOT} of=/sdcard/backup-${p}.img bs=4M"
   adb pull "/sdcard/backup-${p}.img" "./backup-x6840/backup-${p}.img"
   adb shell rm -f "/sdcard/backup-${p}.img"
 done
 
-# Backup partisi yang mounted via /dev/block/by-name/ (vbmeta_* & co)
+# Backup partisi metadata/raw. vbmeta tidak pakai slotselect -> nama polos.
+# vbmeta_system / vbmeta_vendor / boot pakai slotselect -> butuh suffix slot.
 for p in vbmeta vbmeta_system vbmeta_vendor; do
+  case "$p" in
+    vbmeta) DEV="/dev/block/by-name/vbmeta" ;;
+    *)      DEV="/dev/block/by-name/${p}${SLOT}" ;;
+  esac
   echo ">>> backup $p"
-  adb shell su -c "dd if=/dev/block/by-name/${p} of=/sdcard/backup-${p}.img bs=4M"
+  adb shell su -c "dd if=$DEV of=/sdcard/backup-${p}.img bs=4M"
   adb pull "/sdcard/backup-${p}.img" "./backup-x6840/backup-${p}.img"
   adb shell rm -f "/sdcard/backup-${p}.img"
 done
@@ -158,8 +172,11 @@ done
 # tetapi penting kalau perlu pemulihan penuh).
 for p in boot init_boot vendor_boot dtbo; do
   case "$p" in
+    boot)         DEV="/dev/block/by-name/boot${SLOT}" ;;
+    init_boot)    DEV="/dev/block/by-name/init_boot" ;;
     vendor_boot) DEV="/dev/block/by-name/vendor_boot" ;;
-    *)           DEV="/dev/block/by-name/${p}_a" ;;
+    dtbo)         DEV="/dev/block/by-name/dtbo" ;;
+    *)            DEV="/dev/block/by-name/${p}_a" ;;
   esac
   echo ">>> backup $p"
   adb shell su -c "dd if=$DEV of=/sdcard/backup-${p}.img bs=4M"

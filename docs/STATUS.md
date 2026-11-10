@@ -148,7 +148,11 @@ Yang diterapkan:
   - Penyebab: Soong bootstrap gagal dengan `unrecognized module type "csuite_test"`.
   - Ditempatkan di `frameworks/base/libs/WindowManager/Shell/tests/flicker/pip/Android.bp:84` dan `art/test/Android.bp:1407`.
   - **Perbaikan:** `scripts/fix-source-tree.sh` kini patch blok `csuite_test` secara spesifik (commit `3868033`).
-- **Run `42804973683`** (commit `3868033`): **sedang berjalan**.
+- **Run `42804973683`** (commit `3868033`): **GAGAL** di Soong bootstrap —
+  `unrecognized module type "csuite_test"` → diperbaiki di `3868033`.
+- **Run `42809964475`** (commit `7eae53b`): **sedang berjalan** — patch
+  dependensi module test framework tidak tersedia (`cts_*`, `mts-*`,
+  `tradefed_errorprone_defaults`).
 
 ---
 
@@ -169,12 +173,11 @@ Lihat [`docs/FLASHING.md`](FLASHING.md) untuk urutan lengkap + rollback.
 
 **Yang harus di-flash:**
 - `system.img`, `system_ext.img`, `product.img`
-- `vbmeta.img` dengan `--disable-verity --disable-verification`
+- `vbmeta.img`, `vbmeta_system.img`, `vbmeta_vendor.img` (dengan
+  `--disable-verity --disable-verification` saat memflash vbmeta)
 
 **Yang tidak boleh di-flash (prosedur normal):**
 - `super.img` — build ini tidak membuatnya
-- `vbmeta_system.img` / `vbmeta_vendor.img` — hanya untuk inspeksi; vendor
-  tetap stok
 - `boot`, `vendor_boot`, `init_boot`, `dtbo`, `vendor`, `odm`, `*_dlkm` —
   tetap stok
 

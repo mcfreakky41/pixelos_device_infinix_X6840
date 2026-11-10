@@ -52,9 +52,12 @@ BOARD_USES_RECOVERY_AS_BOOT := false
 BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := false
 
 # --- Dynamic partitions (super) ---
-# Perangkat memakai Virtual A/B: super hanya mengalokasikan satu slot;
-# slot kedua dibuat sebagai snapshot saat OTA. Karena itu group "main"
-# boleh memakai hampir seluruh super (dikurangi overhead metadata).
+# Perangkat memakai Virtual A/B: via inherit-product virtual_ab_ota.mk.
+# Slot kedua (b) adalah snapshot COW (copy-on-write) dari slot dasar (a
+# selama runtime); setelah boot berhasil, perubahan OTA pada slot b
+# digabungkan kembali ke partisi dasar. BUKAN sekadar "snapshot tebas".
+# Karena itu group "main" boleh memakai hampir seluruh super
+# (dikurangi overhead metadata).
 # Kalau ternyata perangkat memakai A/B biasa (bukan Virtual A/B), nilai
 # BOARD_MAIN_SIZE harus <= setengah super. Verifikasi dengan:
 #   fastboot getvar current-slot
