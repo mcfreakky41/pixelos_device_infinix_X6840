@@ -30,19 +30,6 @@
 
 ---
 
-## 📝 Riwayat Build (Terbaru)
-
-| Run | Hasil | Error Utama | Perbaikan Kunci |
-|-----|-------|-------------|-----------------|
-| #25-#26 | ❌ failure | rust-src, build-tools syntax | arm64 host patches |
-| #27-#42 | ❌ failure | prebuilts/build-tools, qcom symlinks | source tree fix scripts |
-| #43-#60 | ❌ failure | livedisplay V2-*, VibratorCL | disable ALL qcom HAL |
-| #61-#64 | ❌ failure | prebuilt_any di Android.bp | ganti ke PRODUCT_COPY_FILES |
-| #65-#69 | ❌ failure | Common_CFlags (Qualcomm) | disable hardware/qcom/*.bp |
-| #70+ | ✅ **berjalan** | - | - |
-
----
-
 ## 🔧 Perbaikan Utama yang Diterapkan
 
 ### Source Tree Fixes (`scripts/fix-source-tree.sh`)
