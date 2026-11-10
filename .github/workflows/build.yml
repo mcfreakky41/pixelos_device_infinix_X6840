@@ -110,10 +110,9 @@ jobs:
             <remove-project name="kernel/prebuilts/6.6/x86-64" />
             <remove-project name="kernel/prebuilts/6.12/x86-64" />
             <remove-project name="kernel/prebuilts/mainline/x86-64" />
-            <remove-project name="kernel/prebuilts/common-modules/virtual-device/6.1/x86-64" />
-            <remove-project name="kernel/prebuilts/common-modules/virtual-device/6.6/x86-64" />
-            <remove-project name="kernel/prebuilts/common-modules/virtual-device/6.12/x86-64" />
-            <remove-project name="kernel/prebuilts/common-modules/virtual-device/mainline/x86-64" />
+            <!-- Catatan: virtual-device/* sudah dihapus oleh snippets/remove.xml
+                 milik manifest PixelOS sendiri, jadi TIDAK boleh diduplikasi
+                 (repo akan error "non-existent project"). -->
             <!-- Emulator / Cuttlefish: tidak dipakai build device fisik. -->
             <remove-project name="platform/prebuilts/qemu-kernel" />
             <remove-project name="platform/prebuilts/android-emulator" />
