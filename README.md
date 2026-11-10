@@ -78,6 +78,8 @@ Build berjalan di **GitHub Actions** pada runner `ubuntu-24.04-arm`:
 gh workflow run build.yml -R mcfreakky41/pixelos_device_infinix_X6840
 ```
 
+> **⚠️ Catatan Build:** Jika runner disk penuh, batalkan build gagal di Actions UI lalu buat yang baru. Monitoring di [docs/STATUS.md](docs/STATUS.md).
+
 Atau lewat UI:
 1. Buka tab **Actions** → pilih **build.yml**
 2. Klik **Run workflow**

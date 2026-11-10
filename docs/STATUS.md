@@ -15,7 +15,7 @@
 | Runner | **ubuntu-24.04-arm** (native arm64 build) |
 | Target | **PixelOS `sixteen` (Android 16)** |
 | Release config | **bp2a** (PixelOS sixteen) |
-| Build terkini | Run #70+ - **berjalan/lancar** |
+| Build terkini | Run #70+ - **GAGAL: No space on device** (runner disk penuh) |
 | Panduan flash | 📄 [docs/FLASHING.md](FLASHING.md) |
 
 ---
