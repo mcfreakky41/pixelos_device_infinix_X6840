@@ -125,6 +125,7 @@ jobs:
             <!-- Test suites (CTS/VTS/MTS/robolectric): tidak ikut di build ROM. -->
             <remove-project name="platform/cts" />
             <remove-project name="platform/platform_testing" />
+            <remove-project name="device/google/cuttlefish" />
             <remove-project name="platform/developers/build" />
             <remove-project name="platform/developers/samples/android" />
             <remove-project name="platform/external/robolectric" />

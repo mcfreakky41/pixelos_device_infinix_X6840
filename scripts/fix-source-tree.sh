@@ -270,7 +270,6 @@ def repl_inline(m):
 s = RE.sub(pat_inline, repl_inline, s)
 pat_multi = r'(defaults|dependencies)\s*:\s*\[\s*\n(\s*)"(?:' + alt + r')"[ \t]*,\s*\n(\s*)\]'
 s = RE.sub(pat_multi, r'\1: []', s)
-s = RE.sub(r',(\s*\])', r'\1', s)
 if s != orig:
     open(p, "w", encoding="utf-8").write(s)
     print("  OK  : hapus referensi module tidak tersedia: " + p)
@@ -290,8 +289,8 @@ done
 # 4.7 Nonaktifkan proyek pengujian yang tidak diperlukan
 #     - libnativehelper/tests_mts: membutuhkan cts_defaults yang
 #       dihapus (di local manifest). Builds ROM, bukan test suite.
-#     - device/google/cuttlefish: membutuhkan hwc_deps yang tidak
-#       ada. Ini lingkungan VM test, bukan hardware Infinix.
+#     - device/google/cuttlefish: sudah dihapus lewa local manifest,
+#       tapi segera disable file_bp-nya bila ada sebagai safety net.
 # ============================================================
 echo ">>> Membersihkan proyek pengujian yang tidak diperlukan..."
 
@@ -304,13 +303,16 @@ elif [ -f "${MTS_BP}.disabled" ]; then
     ok "sudah disabled: $MTS_BP"
 fi
 
-# Nonaktifkan seluruh cuttlefish (hwc_deps tidak ada)
-CTVF="device/google/cuttlefish"
-if [ -d "$CTVF" ]; then
-    mv "$CTVF" "${CTVF}.disabled"
-    ok "disabled: $CTVF (mengandung hwc_deps yang tidak tersedia)"
-elif [ -d "${CTVF}.disabled" ]; then
-    ok "sudah disabled: $CTVF"
+# Cuttlefish sudah dihapus lewat local manifest (<remove-project name="device/google/cuttlefish" />)
+# Ini hanyalah safety net bila ada yang tak tertangani
+CTVF_ROOT="device/google/cuttlefish"
+if [ -d "$CTVF_ROOT.disabled" ]; then
+    # Hapusnya yang sudah dipindahkan sebelumnya
+    rmdir "$CTVF_ROOT.disabled" 2>/dev/null || true
+fi
+if [ -e "$CTVF_ROOT" ] || [ -d "$CTVF_ROOT.disabled" ]; then
+    # Jika masih ada (tidak dihapus lewat sync), nonaktifkan seluruh direktori
+    mv "$CTVF_ROOT" "${CTVF_ROOT}.disabled" 2>/dev/null && ok "disabled: $CTVF_ROOT" || ok "sudah tidak ada: $CTVF_ROOT (dihapus local manifest)"
 fi
 
 # ============================================================
