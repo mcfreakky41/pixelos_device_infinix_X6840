@@ -245,14 +245,17 @@ done
 #     tersebut. Patch ini spesifik: hanya string nama module yang
 #     dibuang (baik entri multi-baris maupun inline), bukan file/dir.
 # ============================================================
-UNDEF_NAMES="cts_defaults|cts_support_defaults|mts-target-sdk-version-current|tradefed_errorprone_defaults"
-for d in build packages/modules tools frameworks external system art test platform_testing device vendor; do
+UNDEF_NAMES="tradefed_defaults|tradefed_errorprone_defaults|rdroidtest_defaults|rdroidtest\.defaults|MotionTestDefaults|cts_defaults|cts_support_defaults|mts-target-sdk-version-current"
+for d in build packages/modules tools frameworks external system art test platform_testing device vendor hardware prebuilts; do
     [ -d "$d" ] || continue
     while IFS= read -r F; do
         python3 - "$F" <<'PYEOF'
 import re as RE, sys
 p = sys.argv[1]
-UNDEF = ("cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current", "tradefed_errorprone_defaults")
+# Semua module type that bisa undefined karena image-only build
+UNDEF = ("tradefed_defaults", "tradefed_errorprone_defaults", "rdroidtest_defaults", 
+         "rdroidtest.defaults", "MotionTestDefaults",
+         "cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current")
 alt = "|".join(RE.escape(u) for u in UNDEF)
 s = open(p, encoding="utf-8").read()
 orig = s
@@ -262,8 +265,7 @@ pat_inline = r'(defaults|dependencies)\s*:\s*\[([^\]]*(?:' + alt + r')[^\]]*)\]'
 def repl_inline(m):
     arr = RE.findall(r'"([^"]+)"', m.group(2))
     arr = [x for x in arr if x not in UNDEF]
-    if not arr:
-        return m.group(1) + ': []'
+    if not arr: return m.group(1) + ': []'
     return m.group(1) + ': [' + ', '.join('"' + x + '"' for x in arr) + ']'
 s = RE.sub(pat_inline, repl_inline, s)
 pat_multi = r'(defaults|dependencies)\s*:\s*\[\s*\n(\s*)"(?:' + alt + r')"[ \t]*,\s*\n(\s*)\]'
