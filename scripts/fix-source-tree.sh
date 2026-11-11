@@ -255,7 +255,8 @@ p = sys.argv[1]
 # Semua module type that bisa undefined karena image-only build
 UNDEF = ("tradefed_defaults", "tradefed_errorprone_defaults", "rdroidtest_defaults", 
          "rdroidtest.defaults", "MotionTestDefaults",
-         "cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current")
+         "cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current",
+         "libwinpthread")
 alt = "|".join(RE.escape(u) for u in UNDEF)
 s = open(p, encoding="utf-8").read()
 orig = s
