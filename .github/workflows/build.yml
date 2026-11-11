@@ -126,7 +126,7 @@ jobs:
             <!-- Test suites (CTS/VTS/MTS/robolectric): tidak ikut di build ROM. -->
             <!-- CTS tetap dipertahankan: diperlukan untuk json, vogarexpectlib,
                  cts_defaults, dll yang diminta oleh libcore, libnativehelper, dll. -->
-            <remove-project name="platform/platform_testing" />
+            <!-- platform_testing tetap dipertahankan: diperlukan untuk sts_defaults -->
             <remove-project name="device/google/cuttlefish" />
             <remove-project name="platform/developers/build" />
             <remove-project name="platform/developers/samples/android" />
@@ -219,7 +219,6 @@ jobs:
                  device/google/cuttlefish_prebuilts \
                  prebuilts/bazel/linux-x86_64 \
                  prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8 \
-                 prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-4.8 \
                  external/openwrt-prebuilts 2>/dev/null || true
           echo "=== Disk setelah reclaim ==="; df -h /
           echo "=== Ukuran source ==="; du -sh . 2>/dev/null || true

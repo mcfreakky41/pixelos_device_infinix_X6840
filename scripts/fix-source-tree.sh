@@ -245,17 +245,18 @@ done
 #     tersebut. Patch ini spesifik: hanya string nama module yang
 #     dibuang (baik entri multi-baris maupun inline), bukan file/dir.
 # ============================================================
-UNDEF_NAMES="tradefed_defaults|tradefed_errorprone_defaults|rdroidtest_defaults|rdroidtest\.defaults|MotionTestDefaults|cts_defaults|cts_support_defaults|mts-target-sdk-version-current"
+UNDEF_NAMES="tradefed_defaults|tradefed_errorprone_defaults|rdroidtest_defaults|rdroidtest\.defaults|MotionTestDefaults"
 for d in build packages/modules tools frameworks external system art test platform_testing device vendor hardware prebuilts; do
     [ -d "$d" ] || continue
     while IFS= read -r F; do
         python3 - "$F" <<'PYEOF'
 import re as RE, sys
 p = sys.argv[1]
-# Semua module type that bisa undefined karena image-only build
+# Module types yang tidak tersedia karena repository yang dihapus:
+# - package Testing (platform_testing) — tidak ada di tree ini
+# - Kita tidak menghapus cts_* karena platform/cts sudah dipulihkan
 UNDEF = ("tradefed_defaults", "tradefed_errorprone_defaults", "rdroidtest_defaults", 
-         "rdroidtest.defaults", "MotionTestDefaults",
-         "cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current")
+         "rdroidtest.defaults", "MotionTestDefaults")
 alt = "|".join(RE.escape(u) for u in UNDEF)
 s = open(p, encoding="utf-8").read()
 orig = s
