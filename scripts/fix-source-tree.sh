@@ -297,8 +297,11 @@ echo ">>> Membersihkan proyek pengujian yang tidak diperlukan..."
 # Nonaktifkan MTS tests (cts_defaults tidak ada karena platform/cts dihapus)
 MTS_BP="libnativehelper/tests_mts/Android.bp"
 if [ -f "$MTS_BP" ]; then
-    mv "$MTS_BP" "${MTS_BP}.disabled"
-    ok "disabled: $MTS_BP (mengandung default yang bergantung pada cts_defaults)"
+    if mv "$MTS_BP" "${MTS_BP}.disabled"; then
+        ok "disabled: $MTS_BP (mengandung default yang bergantung pada cts_defaults)"
+    else
+        warn "gagal menonaktifkan: $MTS_BP"
+    fi
 elif [ -f "${MTS_BP}.disabled" ]; then
     ok "sudah disabled: $MTS_BP"
 fi
@@ -306,13 +309,20 @@ fi
 # Cuttlefish sudah dihapus lewat local manifest (<remove-project name="device/google/cuttlefish" />)
 # Ini hanyalah safety net bila ada yang tak tertangani
 CTVF_ROOT="device/google/cuttlefish"
-if [ -d "$CTVF_ROOT.disabled" ]; then
-    # Hapusnya yang sudah dipindahkan sebelumnya
-    rmdir "$CTVF_ROOT.disabled" 2>/dev/null || true
-fi
-if [ -e "$CTVF_ROOT" ] || [ -d "$CTVF_ROOT.disabled" ]; then
-    # Jika masih ada (tidak dihapus lewat sync), nonaktifkan seluruh direktori
-    mv "$CTVF_ROOT" "${CTVF_ROOT}.disabled" 2>/dev/null && ok "disabled: $CTVF_ROOT" || ok "sudah tidak ada: $CTVF_ROOT (dihapus local manifest)"
+
+for p in "$CTVF_ROOT" "${CTVF_ROOT}.disabled"; do
+    if [ -e "$p" ]; then
+        echo ">>> Membersihkan sisa Cuttlefish: $p"
+        rm -rf -- "$p" || {
+            warn "gagal membersihkan $p"
+        }
+    fi
+done
+
+if [ -e "$CTVF_ROOT" ] || [ -e "${CTVF_ROOT}.disabled" ]; then
+    warn "Cuttlefish masih tersisa dalam source tree"
+else
+    ok "Cuttlefish tidak ditemukan dalam source tree (dihapus local manifest)"
 fi
 
 # ============================================================
