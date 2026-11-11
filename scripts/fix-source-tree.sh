@@ -307,6 +307,33 @@ else
 fi
 
 # ============================================================
+# 4.8 Nonaktifkan Cuttlefish Automotive Proxy.
+# platform_testing tetap dipertahankan untuk sts_defaults,
+# tetapi automotive proxy membutuhkan cuttlefish_base yang tidak ada.
+# ============================================================
+
+AUTO_BP="platform_testing/tools/automotive/proxy/Android.bp"
+AUTO_DISABLED="${AUTO_BP}.disabled"
+
+if [ -f "$AUTO_BP" ]; then
+    if grep -q 'name: "automotive_vsock_proxy"' "$AUTO_BP" &&
+       grep -q '"cuttlefish_base"' "$AUTO_BP"; then
+        if mv "$AUTO_BP" "$AUTO_DISABLED"; then
+            ok "Cuttlefish Automotive Proxy dinonaktifkan"
+        else
+            warn "Gagal menonaktifkan Automotive Proxy"
+        fi
+    else
+        warn "Android.bp tidak sesuai dengan pola yang diharapkan"
+    fi
+elif [ -f "$AUTO_DISABLED" ]; then
+    ok "Cuttlefish Automotive Proxy sudah dinonaktifkan"
+else
+    # File tidak ada — mungkin tidak diambil dalam sync
+    ok "Cuttlefish Automotive Proxy tidak ada (tidak diperlukan)"
+fi
+
+# ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
 check_absent() { # desc, path
