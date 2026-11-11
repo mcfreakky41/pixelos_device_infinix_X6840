@@ -75,10 +75,10 @@ done
 
 if [ -f frameworks/base/Android.bp ]; then
     python3 - frameworks/base/Android.bp <<'PYEOF'
-import re, sys
+import re as RE, sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
-s2 = re.sub(r'[ \t]*"vendor\.lineage\.livedisplay-V2[^"]*",?[ \t]*\n?', '', s)
+s2 = RE.sub(r'[ \t]*"vendor\.lineage\.livedisplay-V2[^"]*",?[ \t]*\n?', '', s)
 if s2 == s:
     print("  OK  : frameworks/base/Android.bp sudah bersih (tidak ada livedisplay-V2)")
 elif "vendor.lineage.livedisplay-V2" in s2:
@@ -121,15 +121,15 @@ for path in glob.glob("vendor/aosp/**/*.mk", recursive=True):
 
     # Kasus paling umum: SimpleSettingsConfig adalah satu-satunya isi blok
     # 'PRODUCT_PACKAGES += \', jadi buang juga baris '+= \'.
-    s2 = re.sub(
+    s2 = RE.sub(
         r'^[ \t]*PRODUCT_PACKAGES[ \t]*\+=[ \t]*\\[ \t]*\r?\n'
         r'[ \t]*SimpleSettingsConfig[ \t]*\r?\n',
-        '', s, flags=re.M)
+        '', s, flags=RE.M)
     # Selain itu, hapus entri-nya saja dari daftar.
-    s2 = re.sub(r'^[ \t]*SimpleSettingsConfig[ \t]*\\?[ \t]*\r?\n', '', s2, flags=re.M)
+    s2 = RE.sub(r'^[ \t]*SimpleSettingsConfig[ \t]*\\?[ \t]*\r?\n', '', s2, flags=RE.M)
     # Rapikan backslash menggantung bila baris terakhir blok tadi dihapus.
-    s2 = re.sub(r'\\[ \t]*\n([ \t]*#)', r'\n\1', s2)
-    s2 = re.sub(r'\\[ \t]*\n([ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*[:+?]?=)', r'\n\1', s2)
+    s2 = RE.sub(r'\\[ \t]*\n([ \t]*#)', r'\n\1', s2)
+    s2 = RE.sub(r'\\[ \t]*\n([ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*[:+?]?=)', r'\n\1', s2)
     if s2 != s:
         open(path, "w", encoding="utf-8").write(s2)
         changed.append(path)
@@ -144,7 +144,7 @@ leftover = []
 for path in glob.glob("vendor/aosp/**/*.mk", recursive=True):
     try:
         for i, ln in enumerate(open(path, encoding="utf-8"), 1):
-            if re.fullmatch(r'[ \t]*SimpleSettingsConfig[ \t]*\r?\n?', ln):
+            if RE.fullmatch(r'[ \t]*SimpleSettingsConfig[ \t]*\r?\n?', ln):
                 leftover.append(f"{path}:{i}")
     except (OSError, UnicodeDecodeError):
         continue
@@ -163,7 +163,7 @@ PYEOF
 VBP="vendor/aosp/build/soong/Android.bp"
 if [ -f "$VBP" ]; then
     python3 - "$VBP" <<'PYEOF'
-import re, sys
+import re as RE, sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
 # Setiap entry: (module_type, [nama modul yang BERNAMA bermuatan Make])
@@ -174,7 +174,7 @@ targets = {
 }
 removed = []
 for kind, names in targets.items():
-    pat = re.compile(r'(?ms)^' + re.escape(kind) + r' \{\n.*?\n\}\n')
+    pat = RE.compile(r'(?ms)^' + RE.escape(kind) + r' \{\n.*?\n\}\n')
     ms = list(pat.finditer(s))
     if not ms:
         continue
@@ -183,7 +183,7 @@ for kind, names in targets.items():
     hit = False
     for m in ms:
         blk = m.group(0)
-        nm = re.search(r'name:\s*"([^"]+)"', blk)
+        nm = RE.search(r'name:\s*"([^"]+)"', blk)
         if nm and nm.group(1) in names:
             parts.append(s[last:m.start()])
             last = m.end()
@@ -220,11 +220,11 @@ for F in \
     art/test/Android.bp; do
     if [ -f "$F" ]; then
         python3 - "$F" <<'PYEOF'
-import re, sys
+import re as RE, sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
 before = s
-s2 = re.sub(r'(?ms)^csuite_test \{\n.*?\n\}\n', '', s)
+s2 = RE.sub(r'(?ms)^csuite_test \{\n.*?\n\}\n', '', s)
 if s2 != before:
     open(p, "w", encoding="utf-8").write(s2)
     print(f"  OK  : blok csuite_test dihapus: {p}")
@@ -250,31 +250,35 @@ for d in build packages/modules tools frameworks external system art test platfo
     [ -d "$d" ] || continue
     while IFS= read -r F; do
         python3 - "$F" <<'PYEOF'
-import re, sys
+import re as RE, sys
 p = sys.argv[1]
 UNDEF = ("cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current", "tradefed_errorprone_defaults")
-alt = "|".join(re.escape(u) for u in UNDEF)
+alt = "|".join(RE.escape(u) for u in UNDEF)
 s = open(p, encoding="utf-8").read()
 orig = s
 # Hapus entry YANG BERADA DALAM defaults: atau dependencies:,
 # bukan entry pada properti lain seperti name: "cts_defaults"
 pat_inline = r'(defaults|dependencies)\s*:\s*\[([^\]]*(?:' + alt + r')[^\]]*)\]'
 def repl_inline(m):
-    arr = re.findall(r'"([^"]+)"', m.group(2))
+    arr = RE.findall(r'"([^"]+)"', m.group(2))
     arr = [x for x in arr if x not in UNDEF]
     if not arr:
         return m.group(1) + ': []'
     return m.group(1) + ': [' + ', '.join('"' + x + '"' for x in arr) + ']'
-s = re.sub(pat_inline, repl_inline, s)
+s = RE.sub(pat_inline, repl_inline, s)
 pat_multi = r'(defaults|dependencies)\s*:\s*\[\s*\n(\s*)"(?:' + alt + r')"[ \t]*,\s*\n(\s*)\]'
-s = re.sub(pat_multi, r'\1: []', s)
-s = re.sub(r',(\s*\])', r'\1', s)
+s = RE.sub(pat_multi, r'\1: []', s)
+s = RE.sub(r',(\s*\])', r'\1', s)
 if s != orig:
     open(p, "w", encoding="utf-8").write(s)
     print("  OK  : hapus referensi module tidak tersedia: " + p)
-if re.search(r'(defaults|dependencies)\s*:[^]]*\["(' + alt + r')"[^]]*\]', s):
-    print("  WARN: masih ada referensi module tidak tersedia: " + p)
-    sys.exit(1)
+    # Verifikasi: periksa SELURUH isi array defaults/dependencies
+    for arr in RE.finditer(r'(defaults|dependencies)\s*:\s*\[([^\]]*)\]', s):
+        contents = arr.group(2)
+        found = [x for x in RE.findall(r'"([^"]+)"', contents) if x in UNDEF]
+        if found:
+            print("  WARN: masih ada referensi module tidak tersedia: " + p)
+            sys.exit(1)
 PYEOF
         [ $? -eq 0 ] || warn "gagal bersihkan referensi module tidak tersedia: $F"
     done < <(grep -rl --include=Android.bp -E "\"(${UNDEF_NAMES})\"" "$d" 2>/dev/null || true)
