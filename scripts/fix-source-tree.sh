@@ -108,7 +108,7 @@ if [ -f packages/apps/SimpleSettingsConfig/Android.bp.disabled ] \
 fi
 
 python3 - <<'PYEOF'
-import glob, re, sys
+import glob, re as RE, sys; M = RE.MULTILINE
 
 changed = []
 for path in glob.glob("vendor/aosp/**/*.mk", recursive=True):
@@ -124,9 +124,9 @@ for path in glob.glob("vendor/aosp/**/*.mk", recursive=True):
     s2 = RE.sub(
         r'^[ \t]*PRODUCT_PACKAGES[ \t]*\+=[ \t]*\\[ \t]*\r?\n'
         r'[ \t]*SimpleSettingsConfig[ \t]*\r?\n',
-        '', s, flags=RE.M)
+        '', s, flags=M)
     # Selain itu, hapus entri-nya saja dari daftar.
-    s2 = RE.sub(r'^[ \t]*SimpleSettingsConfig[ \t]*\\?[ \t]*\r?\n', '', s2, flags=RE.M)
+    s2 = RE.sub(r'^[ \t]*SimpleSettingsConfig[ \t]*\\?[ \t]*\r?\n', '', s2, flags=M)
     # Rapikan backslash menggantung bila baris terakhir blok tadi dihapus.
     s2 = RE.sub(r'\\[ \t]*\n([ \t]*#)', r'\n\1', s2)
     s2 = RE.sub(r'\\[ \t]*\n([ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*[:+?]?=)', r'\n\1', s2)

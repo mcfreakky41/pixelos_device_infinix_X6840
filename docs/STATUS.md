@@ -174,9 +174,10 @@ Yang diterapkan:
 - **Run `42930830683`** (commit `3da985d`): **DITOLAK** sebelum build
   (developer menahan). Patch 4.6 versi `3da985d` berpotensi merusak
   file `Android.bp` — menghapus string `"cts_defaults"` di properti `name:`.
-- **Run `42932232012`** (commit `6810b92`): **sedang berjalan** — patch 4.6
-  koreksi: hanya menghapus entry dalam `defaults:`/`dependencies:` saja,
-  tidak sentuh properti `name:`.
+- **Run `42932232012`** (commit `6810b92`): **DITOLAK** sebelum build
+  (developer menahan). Perbaikan verifikasi akhir belum selesai.
+- **Run `42933293380`** (commit `93d94f3`): **SEDANG BERJALAN** — patch 4.6
+  final: verifikasi akhir cek semua elemen array, tidak hanya posisi pertama.
 
 ---
 
