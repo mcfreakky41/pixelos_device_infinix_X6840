@@ -287,6 +287,33 @@ PYEOF
 done
 
 # ============================================================
+# 4.7 Nonaktifkan proyek pengujian yang tidak diperlukan
+#     - libnativehelper/tests_mts: membutuhkan cts_defaults yang
+#       dihapus (di local manifest). Builds ROM, bukan test suite.
+#     - device/google/cuttlefish: membutuhkan hwc_deps yang tidak
+#       ada. Ini lingkungan VM test, bukan hardware Infinix.
+# ============================================================
+echo ">>> Membersihkan proyek pengujian yang tidak diperlukan..."
+
+# Nonaktifkan MTS tests (cts_defaults tidak ada karena platform/cts dihapus)
+MTS_BP="libnativehelper/tests_mts/Android.bp"
+if [ -f "$MTS_BP" ]; then
+    mv "$MTS_BP" "${MTS_BP}.disabled"
+    ok "disabled: $MTS_BP (mengandung default yang bergantung pada cts_defaults)"
+elif [ -f "${MTS_BP}.disabled" ]; then
+    ok "sudah disabled: $MTS_BP"
+fi
+
+# Nonaktifkan seluruh cuttlefish (hwc_deps tidak ada)
+CTVF="device/google/cuttlefish"
+if [ -d "$CTVF" ]; then
+    mv "$CTVF" "${CTVF}.disabled"
+    ok "disabled: $CTVF (mengandung hwc_deps yang tidak tersedia)"
+elif [ -d "${CTVF}.disabled" ]; then
+    ok "sudah disabled: $CTVF"
+fi
+
+# ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
 check_absent() { # desc, path
