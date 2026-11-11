@@ -256,18 +256,23 @@ UNDEF = ("cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current
 alt = "|".join(re.escape(u) for u in UNDEF)
 s = open(p, encoding="utf-8").read()
 orig = s
-# entri multi-baris: baris yang hanya berisi "nama_module",
-s = re.sub(r'(?m)^[ \t]*"(?:' + alt + r')"[ \t]*,?[ \t]*\n', '', s)
-# entri inline yang masih punya koma setelahnya
-s = re.sub(r'"(?:' + alt + r')"[ \t]*,[ \t]*', '', s)
-# entri inline terakhir (tanpa koma)
-s = re.sub(r'[ \t]*"(?:' + alt + r')"', '', s)
-# rapikan koma menggantung sebelum ]
-s = re.sub(r',([ \t]*\])', r'\1', s)
+# Hapus entry YANG BERADA DALAM defaults: atau dependencies:,
+# bukan entry pada properti lain seperti name: "cts_defaults"
+pat_inline = r'(defaults|dependencies)\s*:\s*\[([^\]]*(?:' + alt + r')[^\]]*)\]'
+def repl_inline(m):
+    arr = re.findall(r'"([^"]+)"', m.group(2))
+    arr = [x for x in arr if x not in UNDEF]
+    if not arr:
+        return m.group(1) + ': []'
+    return m.group(1) + ': [' + ', '.join('"' + x + '"' for x in arr) + ']'
+s = re.sub(pat_inline, repl_inline, s)
+pat_multi = r'(defaults|dependencies)\s*:\s*\[\s*\n(\s*)"(?:' + alt + r')"[ \t]*,\s*\n(\s*)\]'
+s = re.sub(pat_multi, r'\1: []', s)
+s = re.sub(r',(\s*\])', r'\1', s)
 if s != orig:
     open(p, "w", encoding="utf-8").write(s)
     print("  OK  : hapus referensi module tidak tersedia: " + p)
-if re.search(r'"(?:' + alt + r')"', s):
+if re.search(r'(defaults|dependencies)\s*:[^]]*\["(' + alt + r')"[^]]*\]', s):
     print("  WARN: masih ada referensi module tidak tersedia: " + p)
     sys.exit(1)
 PYEOF
