@@ -198,10 +198,10 @@ if removed:
     print("  OK  : modul bermuatan Make dihapus spesifik:")
     for r in removed:
         print("        - " + r)
-elif '$(' in s:
+if '$(' in s:
     print("  WARN: masih ada Make variable di vendor/aosp/build/soong/Android.bp")
     sys.exit(1)
-else:
+if not removed:
     print("  OK  : tidak ada modul bermuatan Make yang perlu dihapus")
 PYEOF
     [ $? -eq 0 ] || warn "gagal patch vendor/aosp/build/soong/Android.bp"
@@ -238,67 +238,42 @@ PYEOF
 done
 
 # ============================================================
-# 4.6 Hapus dependensi pada module type yang tidak tersedia
-#     Build image-only tidak menyertakan modul test framework AOSP.
-#     Beberapa modul test (cts_*, mts-*, tradefed_errorprone) masih
-#     merujuk module defaults yang tidak ada pada tree ini. Patchnya:
-#     buang entri deps yang merujuk module tersebut (spesifik), jangan
-#     men-disable seluruh file blueprint.
+# 4.6 Hapus referensi ke module defaults test framework yang tidak
+#     tersedia pada tree ini (cts_defaults, cts_support_defaults,
+#     mts-target-sdk-version-current, tradefed_errorprone_defaults).
+#     Soong bootstrap gagal bila ada modul yang bergantung pada module
+#     tersebut. Patch ini spesifik: hanya string nama module yang
+#     dibuang (baik entri multi-baris maupun inline), bukan file/dir.
 # ============================================================
-UNDEF_NAMES="cts_defaults cts_support_defaults mts-target-sdk-version-current tradefed_errorprone_defaults"
-if [ -d packages/modules ]; then
-    find packages/modules -name Android.bp -print0 2>/dev/null | while IFS= read -r -d '' F; do
-        if grep -qE "\"(${UNDEF_NAMES})\"" "$F"; then
-            python3 - "$F" <<'PYEOF'
+UNDEF_NAMES="cts_defaults|cts_support_defaults|mts-target-sdk-version-current|tradefed_errorprone_defaults"
+for d in build packages/modules tools frameworks external system art test platform_testing device vendor; do
+    [ -d "$d" ] || continue
+    while IFS= read -r F; do
+        python3 - "$F" <<'PYEOF'
 import re, sys
 p = sys.argv[1]
 UNDEF = ("cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current", "tradefed_errorprone_defaults")
+alt = "|".join(re.escape(u) for u in UNDEF)
 s = open(p, encoding="utf-8").read()
-out = []
-changed = False
-for ln in s.splitlines(keepends=True):
-    m = re.match(r'^(\s*)"([^"]+)"', ln)
-    if m and m.group(2) in UNDEF:
-        changed = True
-        continue
-    out.append(ln)
-if changed:
-    open(p, "w", encoding="utf-8").write("".join(out))
-    print("  OK  : hapus deps module tidak tersedia: " + p)
-else:
-    print("  OK  : tidak ada deps module tidak tersedia: " + p)
-sys.exit(0)
+orig = s
+# entri multi-baris: baris yang hanya berisi "nama_module",
+s = re.sub(r'(?m)^[ \t]*"(?:' + alt + r')"[ \t]*,?[ \t]*\n', '', s)
+# entri inline yang masih punya koma setelahnya
+s = re.sub(r'"(?:' + alt + r')"[ \t]*,[ \t]*', '', s)
+# entri inline terakhir (tanpa koma)
+s = re.sub(r'[ \t]*"(?:' + alt + r')"', '', s)
+# rapikan koma menggantung sebelum ]
+s = re.sub(r',([ \t]*\])', r'\1', s)
+if s != orig:
+    open(p, "w", encoding="utf-8").write(s)
+    print("  OK  : hapus referensi module tidak tersedia: " + p)
+if re.search(r'"(?:' + alt + r')"', s):
+    print("  WARN: masih ada referensi module tidak tersedia: " + p)
+    sys.exit(1)
 PYEOF
-        fi
-    done
-fi
-
-if [ -d tools/tradefederation ]; then
-    find tools/tradefederation -name Android.bp -print0 2>/dev/null | while IFS= read -r -d '' F; do
-        if grep -qE "\"(${UNDEF_NAMES})\"" "$F"; then
-            python3 - "$F" <<'PYEOF'
-import re, sys
-p = sys.argv[1]
-UNDEF = ("cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current", "tradefed_errorprone_defaults")
-s = open(p, encoding="utf-8").read()
-out = []
-changed = False
-for ln in s.splitlines(keepends=True):
-    m = re.match(r'^(\s*)"([^"]+)"', ln)
-    if m and m.group(2) in UNDEF:
-        changed = True
-        continue
-    out.append(ln)
-if changed:
-    open(p, "w", encoding="utf-8").write("".join(out))
-    print("  OK  : hapus deps module tidak tersedia: " + p)
-else:
-    print("  OK  : tidak ada deps module tidak tersedia: " + p)
-sys.exit(0)
-PYEOF
-        fi
-    done
-fi
+        [ $? -eq 0 ] || warn "gagal bersihkan referensi module tidak tersedia: $F"
+    done < <(grep -rl --include=Android.bp -E "\"(${UNDEF_NAMES})\"" "$d" 2>/dev/null || true)
+done
 
 # ============================================================
 # 5. Verifikasi akhir (fail-closed)

@@ -45,10 +45,13 @@ PRODUCT_SYSTEM_PROPERTIES += \
 # Telephony (DSDS + VoLTE, MTK IMS)
 # ============================================================
 PRODUCT_VENDOR_PROPERTIES += \
-    persist.vendor.radio.msimmode=dsds \
-    persist.vendor.dbg.ims_volte_enable=1
+    persist.vendor.radio.msimmode=dsds
 
+# persist.dbg.ims_volte_enable dibaca langsung oleh Telephony Framework
+# (TelephonyProperties.PROPERTY_DBG_IMS_VOLTE_ENABLE) — nama ini HARUS
+# dipertahankan, bukan diganti ke namespace vendor.
 PRODUCT_SYSTEM_PROPERTIES += \
+    persist.dbg.ims_volte_enable=1 \
     ro.telephony.default_network=9,9
 
 # ============================================================

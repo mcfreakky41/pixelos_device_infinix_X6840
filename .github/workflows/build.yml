@@ -453,6 +453,33 @@ jobs:
           cd ~/android/pixelos
           bash "$GITHUB_WORKSPACE/device-tree/scripts/fix-source-tree.sh" "$PWD"
 
+      # Diagnostik Soong: bedakan source yang memang dihapus manifest PixelOS
+      # dari source yang seharusnya ada tetapi hilang. Bersifat informatif
+      # (tidak menggagalkan build) supaya error Soong berikutnya lebih mudah
+      # dilacak tanpa menebak-nebak.
+      - name: Verify key source files (Soong diagnostics)
+        run: |
+          cd ~/android/pixelos
+          FILES=(
+            frameworks/native/cmds/atrace/Android.bp
+            frameworks/native/services/surfaceflinger/Android.bp
+            frameworks/native/services/surfaceflinger/fuzzer/Android.bp
+            frameworks/base/AconfigFlags.bp
+            system/extras/libatrace_rust/Android.bp
+            hardware/google/pixel/atrace/Android.bp
+            device/google/cuttlefish/build/Android.bp
+            prebuilts/r8/tests/Android.bp
+          )
+          for f in "${FILES[@]}"; do
+            if [ -f "$f" ]; then echo "FOUND   $f"; else echo "MISSING $f"; fi
+          done
+          echo ">>> Catatan: hardware/google/pixel dan system/extras memang dihapus"
+          echo ">>> oleh manifest PixelOS; MISSING untuk keduanya adalah normal."
+          for m in surfaceflinger_binary_sources surfaceflinger_flags_java_lib ftrace_synthetic_events.conf; do
+            hits=$(grep -rl --include='*.bp' -F "name: \"$m\"" frameworks/native frameworks/base 2>/dev/null | head -1)
+            if [ -n "$hits" ]; then echo "DEFINED $m -> $hits"; else echo "UNDEFINED $m"; fi
+          done
+
       - name: Fetch vendor blobs
         run: |
           cd ~/android/pixelos
@@ -512,6 +539,11 @@ jobs:
           set -o pipefail
           if ! mka $TARGETS -j$JOBS 2>&1 | tee build.log; then
             echo "=== BUILD GAGAL ==="
+            echo "=== FIRST SOONG ERRORS ==="
+            grep -n -B 4 -A 8 \
+              -E 'error:|missing dependencies|undefined module|missing variant|unrecognized module type' \
+              build.log | head -250 || true
+            echo "=== TAIL BUILD LOG ==="
             tail -300 build.log
             kill $HB 2>/dev/null || true
             exit 1

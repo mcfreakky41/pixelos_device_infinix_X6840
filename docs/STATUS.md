@@ -150,9 +150,28 @@ Yang diterapkan:
   - **Perbaikan:** `scripts/fix-source-tree.sh` kini patch blok `csuite_test` secara spesifik (commit `3868033`).
 - **Run `42804973683`** (commit `3868033`): **GAGAL** di Soong bootstrap —
   `unrecognized module type "csuite_test"` → diperbaiki di `3868033`.
-- **Run `42809964475`** (commit `7eae53b`): **sedang berjalan** — patch
-  dependensi module test framework tidak tersedia (`cts_*`, `mts-*`,
-  `tradefed_errorprone_defaults`).
+- **Run `42809964475`** (commit `7eae53b`): **GAGAL** di Soong bootstrap —
+  `unrecognized module type` berubah menjadi *depends on undefined module*
+  (`cts_defaults`, `mts-target-sdk-version-current`, …). Termasuk error baru:
+  `packages/modules/Profiling/tests/cts/Android.bp:22` —
+  `CtsProfilingModuleTests` depends on undefined `cts_defaults`.
+- **Run `42814588670`** (commit `c3a9ae8`): **GAGAL** di Soong bootstrap
+  (step Build). Error aktual:
+  - `build/bazel/examples/android_test_helper_app/Android.bp:19` —
+    `CtsEmptyTestAppExample` depends on undefined `cts_defaults`
+  - `packages/modules/Uwb/tests/cts/tests/Android.bp:20` —
+    `CtsUwbTestCases` depends on undefined `cts_defaults`
+  - `packages/modules/Connectivity/tests/cts/hostside/Android.bp:36` —
+    `CtsHostsideNetworkTests` depends on undefined `cts_defaults`
+  - `tools/tradefederation/contrib/Android.bp:19` —
+    `tradefed-contrib` depends on undefined `tradefed_errorprone_defaults`
+  - **Analisis:** patch 4.6 versi sebelumnya hanya menangani entri
+    multi-baris di `packages/modules` + `tools/tradefederation`; entri
+    inline (`defaults: ["cts_defaults"]`) dan file di `build/bazel/`
+    lolos. Patch 4.6 baru memindai seluruh tree (build, packages/modules,
+    tools, frameworks, external, system, art, test, platform_testing,
+    device, vendor) dan menangani entri inline + multi-baris.
+- **Run berikutnya:** akan dijalankan dari commit perbaikan ini.
 
 ---
 
@@ -173,10 +192,12 @@ Lihat [`docs/FLASHING.md`](FLASHING.md) untuk urutan lengkap + rollback.
 
 **Yang harus di-flash:**
 - `system.img`, `system_ext.img`, `product.img`
-- `vbmeta.img`, `vbmeta_system.img`, `vbmeta_vendor.img` (dengan
-  `--disable-verity --disable-verification` saat memflash vbmeta)
+- `vbmeta.img` (top-level) dengan `--disable-verity --disable-verification`
 
 **Yang tidak boleh di-flash (prosedur normal):**
+- `vbmeta_system.img` / `vbmeta_vendor.img` — chained vbmeta, hanya untuk
+  inspeksi. Vendor/odm tetap stok, jadi chained vbmeta hasil build tidak
+  konsisten dengan image stok.
 - `super.img` — build ini tidak membuatnya
 - `boot`, `vendor_boot`, `init_boot`, `dtbo`, `vendor`, `odm`, `*_dlkm` —
   tetap stok
@@ -192,3 +213,10 @@ Lihat [`docs/FLASHING.md`](FLASHING.md) untuk urutan lengkap + rollback.
 - VINTF penuh, AVB chain, dan perilaku SELinux vendor belum diverifikasi.
 - Backup/rollback di `docs/FLASHING.md` belum diuji pada perangkat dengan
   image hasil build ini.
+- `AB_OTA_PARTITIONS` masih mencantumkan `vendor_boot` dan `vbmeta`
+  (dump firmware mencatat keduanya tanpa suffix slot). Belum diverifikasi
+  dengan `fastboot getvar has-slot:vendor_boot` / `has-slot:vbmeta` pada
+  perangkat — jangan dipakai untuk OTA sampai dicek.
+- Super partition (`BOARD_MAIN_PARTITION_LIST`) belum memuat partisi
+  Transsion (`tr_*`) yang ada di dalam super; `super.img` **tidak boleh**
+  dibangun/di-flash dari konfigurasi ini.

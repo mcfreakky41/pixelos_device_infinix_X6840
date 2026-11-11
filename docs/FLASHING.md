@@ -137,11 +137,18 @@ adb shell su -c 'ls -l /dev/block/by-name/' # partisi emmc/raw ada
 
 # Slot aktif (A/B). Partisi yang direkam pakai flag slotselect di fstab
 # (system/system_ext/product/boot/vbmeta_system/vbmeta_vendor/tr_*) wajib
-# pakai suffix slot (_a/_b). Partisi tanpa slotselect (vbmeta, init_boot,
-# vendor_boot, dtbo, dll) memakai nama polos.
+# pakai suffix slot (_a/_b). Partisi tanpa slotselect (vbmeta, vendor_boot)
+# memakai nama polos. init_boot/dtbo tercatat A/B di dump firmware
+# (init_boot_a=p29, init_boot_b=p45; dtbo_a=p30, dtbo_b=p46) sehingga
+# backup memakai suffix slot aktif.
 SLOT="$(adb shell getprop ro.boot.slot_suffix | tr -d '[:space:]')"
-[ -n "$SLOT" ] || SLOT="_a"
-echo ">>> Slot aktif: ${SLOT:-_a}"
+if [ -z "$SLOT" ]; then
+  echo "FATAL: tidak bisa menentukan slot aktif (ro.boot.slot_suffix kosong)."
+  echo "       Periksa: adb shell getprop ro.boot.slot_suffix"
+  echo "       Jangan lanjut backup — salah slot = backup tidak valid."
+  exit 1
+fi
+echo ">>> Slot aktif: ${SLOT}"
 
 # Siapkan folder backup
 mkdir -p backup-x6840
@@ -173,9 +180,9 @@ done
 for p in boot init_boot vendor_boot dtbo; do
   case "$p" in
     boot)         DEV="/dev/block/by-name/boot${SLOT}" ;;
-    init_boot)    DEV="/dev/block/by-name/init_boot" ;;
-    vendor_boot) DEV="/dev/block/by-name/vendor_boot" ;;
-    dtbo)         DEV="/dev/block/by-name/dtbo" ;;
+    init_boot)    DEV="/dev/block/by-name/init_boot${SLOT}" ;;
+    vendor_boot)  DEV="/dev/block/by-name/vendor_boot" ;;
+    dtbo)         DEV="/dev/block/by-name/dtbo${SLOT}" ;;
     *)            DEV="/dev/block/by-name/${p}_a" ;;
   esac
   echo ">>> backup $p"
