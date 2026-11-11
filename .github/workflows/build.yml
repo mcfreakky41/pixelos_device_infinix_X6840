@@ -120,10 +120,12 @@ jobs:
             <!-- Toolchain host x86_64 / Windows: tidak bisa jalan di host arm64. -->
             <remove-project name="platform/prebuilts/bazel/linux-x86_64" />
             <remove-project name="platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8" />
-            <remove-project name="platform/prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-4.8" />
+            <!-- MinGW tetap dipertahankan: diperlukan untuk libwinpthread yang
+                 dihasilkan otomatis oleh Soong untuk modul Windows target. -->
             <remove-project name="platform/external/openwrt-prebuilts" />
             <!-- Test suites (CTS/VTS/MTS/robolectric): tidak ikut di build ROM. -->
-            <remove-project name="platform/cts" />
+            <!-- CTS tetap dipertahankan: diperlukan untuk json, vogarexpectlib,
+                 cts_defaults, dll yang diminta oleh libcore, libnativehelper, dll. -->
             <remove-project name="platform/platform_testing" />
             <remove-project name="device/google/cuttlefish" />
             <remove-project name="platform/developers/build" />

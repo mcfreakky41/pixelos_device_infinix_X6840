@@ -255,8 +255,7 @@ p = sys.argv[1]
 # Semua module type that bisa undefined karena image-only build
 UNDEF = ("tradefed_defaults", "tradefed_errorprone_defaults", "rdroidtest_defaults", 
          "rdroidtest.defaults", "MotionTestDefaults",
-         "cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current",
-         "libwinpthread")
+         "cts_defaults", "cts_support_defaults", "mts-target-sdk-version-current")
 alt = "|".join(RE.escape(u) for u in UNDEF)
 s = open(p, encoding="utf-8").read()
 orig = s
@@ -288,38 +287,18 @@ done
 
 # ============================================================
 # 4.7 Nonaktifkan proyek pengujian yang tidak diperlukan
-#     - libnativehelper/tests_mts: membutuhkan cts_defaults yang
-#       dihapus (di local manifest). Builds ROM, bukan test suite.
-#     - device/google/cuttlefish: sudah dihapus lewa local manifest,
-#       tapi segera disable file_bp-nya bila ada sebagai safety net.
+#     - device/google/cuttlefish sudah dihapus lelocal manifest
 # ============================================================
 echo ">>> Membersihkan proyek pengujian yang tidak diperlukan..."
 
-# Nonaktifkan MTS tests (cts_defaults tidak ada karena platform/cts dihapus)
-MTS_BP="libnativehelper/tests_mts/Android.bp"
-if [ -f "$MTS_BP" ]; then
-    if mv "$MTS_BP" "${MTS_BP}.disabled"; then
-        ok "disabled: $MTS_BP (mengandung default yang bergantung pada cts_defaults)"
-    else
-        warn "gagal menonaktifkan: $MTS_BP"
-    fi
-elif [ -f "${MTS_BP}.disabled" ]; then
-    ok "sudah disabled: $MTS_BP"
-fi
-
-# Cuttlefish sudah dihapus lewat local manifest (<remove-project name="device/google/cuttlefish" />)
-# Ini hanyalah safety net bila ada yang tak tertangani
+# Cuttlefish sudah dihapus lewat local manifest
 CTVF_ROOT="device/google/cuttlefish"
-
 for p in "$CTVF_ROOT" "${CTVF_ROOT}.disabled"; do
     if [ -e "$p" ]; then
         echo ">>> Membersihkan sisa Cuttlefish: $p"
-        rm -rf -- "$p" || {
-            warn "gagal membersihkan $p"
-        }
+        rm -rf -- "$p" || warn "gagal membersihkan $p"
     fi
 done
-
 if [ -e "$CTVF_ROOT" ] || [ -e "${CTVF_ROOT}.disabled" ]; then
     warn "Cuttlefish masih tersisa dalam source tree"
 else
