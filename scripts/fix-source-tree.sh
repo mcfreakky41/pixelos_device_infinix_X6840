@@ -381,6 +381,50 @@ else
     ok "tidak ada referensi Cuttlefish test di platform_testing (sudah bersih)"
 fi
 
+
+# ============================================================
+# 4.10 Virtualization (microdroid): buang referensi ke kernel
+#      prebuilts x86-64 yang di-drop local manifest.
+#      Pelajaran run #152: 'microdroid_gki-{15-6.6,16-6.12}_initrd_gen_x86_64'
+#      butuh microdroid_gki_modules-*-x86_64 dari repo
+#      kernel/prebuilts/{6.6,6.12}/x86-64 yang tidak di-sync.
+#      Keduanya host-tool/VIRT microdroid x86_64 — tidak relevan
+#      untuk build image device arm64. Hapus HANYA baris srcs-nya;
+#      definisi modul tetap ada supaya tidak memicu error baru.
+# ============================================================
+echo ">>> Membuang referensi kernel prebuilt x86-64 dari Virtualization..."
+KX_PAT='"(microdroid_gki_modules-android15-6.6-x86_64|microdroid_gki_modules-android16-6.12-x86_64)"'
+if [ -d packages/modules/Virtualization ]; then
+    KX_FILES=$(grep -rl --include=Android.bp -E "$KX_PAT" packages/modules/Virtualization 2>/dev/null || true)
+    if [ -n "$KX_FILES" ]; then
+        while IFS= read -r F; do
+            python3 - "$F" <<'PYEOF'
+import sys
+p = sys.argv[1]
+targets = ("microdroid_gki_modules-android15-6.6-x86_64",
+           "microdroid_gki_modules-android16-6.12-x86_64")
+lines = open(p, encoding="utf-8").read().split("\n")
+out, removed = [], 0
+for ln in lines:
+    if any(('"%s"' % t) in ln for t in targets):
+        removed += 1
+        continue
+    out.append(ln)
+if removed:
+    open(p, "w", encoding="utf-8").write("\n".join(out))
+    print("  OK  : %d baris referensi kernel prebuilt x86-64 dibuang dari %s" % (removed, p))
+else:
+    print("  OK  : tidak ada referensi kernel prebuilt x86-64 di %s" % p)
+PYEOF
+            [ $? -eq 0 ] || warn "gagal bersihkan referensi kernel prebuilt x86-64: $F"
+        done <<< "$KX_FILES"
+    else
+        ok "tidak ada referensi kernel prebuilt x86-64 di Virtualization"
+    fi
+else
+    ok "packages/modules/Virtualization tidak ada (dilewati)"
+fi
+
 # ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
