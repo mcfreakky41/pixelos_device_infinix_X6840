@@ -33,8 +33,29 @@ known_repo() {
     case "$1" in
         robolectric-host-android_all)      echo "platform/external/robolectric" ;;
         robolectric-android-all-prebuilts) echo "prebuilts/misc/common/robolectric" ;;
+        libvts_vintf_test_common)          echo "platform/test/vts" ;;
+        vndk_utils)                        echo "platform/test/vts" ;;
+        vts_kernel_utils)                  echo "platform/test/vts" ;;
+        vts_vndk_utils)                    echo "platform/test/vts" ;;
         *)                                 echo "" ;;
     esac
+}
+
+# Heuristik: kata kunci dari nama modul vs nama repo di remove-project.
+# Modul 'xxx_vts_yyy' kemungkinan besar didefinisikan di repo yang mengandung
+# kata 'vts'. Cetak kandidat supaya tidak perlu menebak manual.
+candidate_repos() {
+    local m="$1" lower kw
+    lower=$(echo "$m" | tr 'A-Z_' 'a-z ')
+    for kw in $lower; do
+        case "$kw" in
+            vts|vintf|vndk|robolectric|cts|mts|tradefed|asuite|catbox|csuite) ;;
+            *) continue ;;
+        esac
+        if [ -n "$WF_LOCAL" ]; then
+            grep -oE "remove-project name=\"[^\"]*$kw[^\"]*\"" "$WF_LOCAL" 2>/dev/null
+        fi
+    done | sort -u
 }
 
 # ---------------------------------------------------------------
@@ -61,6 +82,14 @@ if [ -n "$MODS" ]; then
             echo "    definisi TIDAK ADA di tree (repo-nya mungkin di-drop local manifest)."
             kr=$(known_repo "$m")
             [ -n "$kr" ] && echo "    repo definisi (terverifikasi): $kr"
+            if [ -z "$kr" ]; then
+                cand=$(candidate_repos "$m")
+                if [ -n "$cand" ]; then
+                    echo "    kandidat repo (heuristik kata kunci):"
+                    echo "$cand" | sed 's/^/        /'
+                    echo "    => kalau cocok, HAPUS baris remove-project tsb dari build.yml."
+                fi
+            fi
             if [ -n "$WF_LOCAL" ]; then
                 if grep -q "remove-project name=\"$kr\"" "$WF_LOCAL" 2>/dev/null; then
                     echo "    !!! $kr MASIH ada di remove-project build.yml -> HAPUS baris itu."
