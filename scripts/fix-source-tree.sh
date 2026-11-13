@@ -340,6 +340,47 @@ else
     ok "Cuttlefish Automotive Proxy tidak ada (tidak diperlukan)"
 fi
 
+
+# ============================================================
+# 4.9 platform_testing: buang referensi test Cuttlefish yang
+#     repo-nya (device/google/cuttlefish) tidak di-sync.
+#     'platform_tests' adalah test_suites — tidak dipakai build image
+#     device. Pelajaran run #149:
+#       platform_testing/Android.bp:5 "platform_tests" depends on
+#       undefined module "CuttlefishRilTests"/"CuttlefishWifiTests".
+# ============================================================
+echo ">>> Membuang referensi test Cuttlefish dari platform_testing..."
+CUTTFILES=$(grep -rl --include=Android.bp -E '"(CuttlefishRilTests|CuttlefishWifiTests)"' platform_testing 2>/dev/null || true)
+if [ -n "$CUTTFILES" ]; then
+    while IFS= read -r F; do
+        python3 - "$F" <<'PYEOF'
+import re as RE, sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+orig = s
+cut = ("CuttlefishRilTests", "CuttlefishWifiTests")
+# 1) entri array multi-baris: baris yang hanya berisi "Nama",
+for c in cut:
+    s = RE.sub(r'(?m)^[ \t]*"%s"[ \t]*,?[ \t]*\r?\n' % RE.escape(c), '', s)
+# 2) entri array satu baris
+for c in cut:
+    s = RE.sub(r'[ \t]*"%s"[ \t]*,?' % RE.escape(c), '', s)
+# rapikan sisa koma
+s = RE.sub(r',\s*,', ',', s)
+s = RE.sub(r'\[\s*,', '[', s)
+s = RE.sub(r',\s*\]', ']', s)
+if s != orig:
+    open(p, "w", encoding="utf-8").write(s)
+    print("  OK  : referensi Cuttlefish test dibuang dari", p)
+else:
+    print("  OK  : tidak ada referensi Cuttlefish test di", p)
+PYEOF
+        [ $? -eq 0 ] || warn "gagal bersihkan referensi Cuttlefish test: $F"
+    done <<< "$CUTTFILES"
+else
+    ok "tidak ada referensi Cuttlefish test di platform_testing (sudah bersih)"
+fi
+
 # ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
