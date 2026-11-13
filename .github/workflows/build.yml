@@ -117,10 +117,15 @@ jobs:
             <remove-project name="platform/prebuilts/qemu-kernel" />
             <remove-project name="platform/prebuilts/android-emulator" />
             <remove-project name="device/google/cuttlefish_prebuilts" />
+            <!-- GCC x86_64 prebuilts JANGAN di-remove (pelajaran run #150):
+                 repo ini mendefinisikan gcc.lib/lib32/lib64/sysroot +
+                 trusty_dirgroup_prebuilts_gcc_linux-x86_host_x86_64-...
+                 yang direferensikan prebuilts/rust/Android.bp (toolchain_deps
+                 module "rustc") dan trusty/vendor/google/aosp/scripts/Android.bp.
+                 Sekitar 250 MB; tetap disinkronkan. -->
             <!-- Toolchain host x86_64 / Windows: tidak bisa jalan di host arm64. -->
             <remove-project name="platform/prebuilts/bazel/linux-x86_64" />
-            <remove-project name="platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8" />
-            <!-- MinGW tetap dipertahankan: diperlukan untuk libwinpthread yang
+                        <!-- MinGW tetap dipertahankan: diperlukan untuk libwinpthread yang
                  dihasilkan otomatis oleh Soong untuk modul Windows target. -->
             <remove-project name="platform/external/openwrt-prebuilts" />
             <!-- VTS JANGAN di-remove (pelajaran run #147):
