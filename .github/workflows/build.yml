@@ -132,7 +132,7 @@ jobs:
                  system/libvintf/Android.bp (libassemblevintf) butuh
                  libvts_vintf_test_common, dan packages/apps/DeviceDiagnostics/
                  TradeInModeTests butuh vndk_utils / vts_kernel_utils /
-                 vts_vndk_utils — semuanya didefinisikan di repo VTS.
+                 vts_vndk_utils â semuanya didefinisikan di repo VTS.
                  Repo VTS test-only & kecil; tetap disinkronkan. -->
             <!-- MLTS JANGAN di-remove (pelajaran run #148):
                  test_mlts_models_assets (platform/test/mlts/models/Android.bp),
@@ -146,7 +146,6 @@ jobs:
                  (tool RBE/Remote Build Execution) yang direferensikan
                  ratusan modul di art/test/Android.run-test.bp.
                  Sekitar 100-200 MB; tetap disinkronkan. -->
-            <remove-project name="platform/prebuilts/remoteexecution-client" />
             <!-- Test suites (CTS/VTS/MTS): tidak ikut di build ROM. -->
             <!-- robolectric JANGAN di-remove (pelajaran run #146):
                  prebuilts/misc/common/robolectric/Android.bp tetap ter-sync dan
@@ -236,7 +235,7 @@ jobs:
                  device/google/cuttlefish_prebuilts \
                  prebuilts/bazel/linux-x86_64 \
                  # NB: prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8
-                 #     JANGAN dihapus — modulnya (gcc.lib/sysroot, trusty
+                 #     JANGAN dihapus â modulnya (gcc.lib/sysroot, trusty
                  #     dirgroup) direferensikan prebuilts/rust & trusty.
                  external/openwrt-prebuilts 2>/dev/null || true
           echo "=== Disk setelah reclaim ==="; df -h /
@@ -550,7 +549,7 @@ jobs:
           # ------------------------------------------------------------
           # Target image-only, BUKAN 'bacon'.
           # 'bacon' menambah target_files + OTA zip + otatools yang
-          # memakan ~10-20 GB ekstra di out/ — tidak muat di runner
+          # memakan ~10-20 GB ekstra di out/ â tidak muat di runner
           # 145 GB setelah source ~90 GB. README memang hanya memakai
           # system/system_ext/product/vbmeta (super.img TIDAK dipakai).
           # Nama target diverifikasi ada di build/make/core/main.mk.
