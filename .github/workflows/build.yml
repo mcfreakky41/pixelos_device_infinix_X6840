@@ -129,6 +129,13 @@ jobs:
                  TradeInModeTests butuh vndk_utils / vts_kernel_utils /
                  vts_vndk_utils — semuanya didefinisikan di repo VTS.
                  Repo VTS test-only & kecil; tetap disinkronkan. -->
+            <!-- MLTS JANGAN di-remove (pelajaran run #148):
+                 test_mlts_models_assets (platform/test/mlts/models/Android.bp),
+                 libnnbenchmark_jni + NeuralNetworksApiBenchmark_Lib
+                 (platform/test/mlts/benchmark) direferensikan oleh
+                 cts/tests/tests/neuralnetworks/benchmark/Android.bp dan
+                 test/vts-testcase/hal/neuralnetworks/*/benchmark/java/Android.bp.
+                 Repo kecil; tetap disinkronkan. -->
             <!-- Test suites (CTS/VTS/MTS): tidak ikut di build ROM. -->
             <!-- robolectric JANGAN di-remove (pelajaran run #146):
                  prebuilts/misc/common/robolectric/Android.bp tetap ter-sync dan
@@ -147,9 +154,7 @@ jobs:
             <remove-project name="platform/test/catbox" />
             <remove-project name="platform/test/cts-root" />
             <remove-project name="platform/test/dittosuite" />
-            <remove-project name="platform/test/mlts/benchmark" />
-            <remove-project name="platform/test/mlts/models" />
-            <remove-project name="platform/test/mts" />
+                                    <remove-project name="platform/test/mts" />
             <remove-project name="platform/test/suite_harness" />
           </manifest>
           XML
