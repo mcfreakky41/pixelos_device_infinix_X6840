@@ -429,6 +429,39 @@ else
     ok "tidak ada referensi kernel prebuilt x86-64 di seluruh tree (sudah bersih)"
 fi
 
+
+# ============================================================
+# 4.11 HAL apex key/certificate menunjuk modul Cuttlefish
+#      (pelajaran run #154). "com.google.cf.apex.key" dan
+#      ":com.google.cf.apex.certificate" milik
+#      device/google/cuttlefish yang tidak di-sync. Ganti ke
+#      kunci HAL baku dari hardware/interfaces/apexkey
+#      (com.android.hardware.key + :com.android.hardware.certificate),
+#      sama seperti dipakai apex sensors/audio/secure_element/power.
+# ============================================================
+echo ">>> Mengganti key/certificate Cuttlefish di HAL apex..."
+CFKC_PAT='com\.google\.cf\.apex\.(key|certificate)'
+CFKC_FILES=""
+for d in hardware packages frameworks system external device vendor prebuilts; do
+    [ -d "$d" ] || continue
+    hit=$(grep -rl --include=Android.bp -E "$CFKC_PAT" "$d" 2>/dev/null || true)
+    CFKC_FILES="$CFKC_FILES $hit"
+done
+if [ -n "$(echo "$CFKC_FILES" | tr -d ' ')" ]; then
+    for F in $CFKC_FILES; do
+        [ -f "$F" ] || continue
+        sed -i \
+            -e 's!"com\.google\.cf\.apex\.key"!"com.android.hardware.key"!g' \
+            -e 's!":com\.google\.cf\.apex\.certificate"!":com.android.hardware.certificate"!g' \
+            -e 's!"com\.google\.cf\.apex\.certificate"!":com.android.hardware.certificate"!g' \
+            "$F" \
+            && ok "key/certificate cuttlefish diganti di $F" \
+            || warn "gagal mengganti key/cert: $F"
+    done
+else
+    ok "tidak ada referensi key/certificate cuttlefish (sudah bersih)"
+fi
+
 # ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
