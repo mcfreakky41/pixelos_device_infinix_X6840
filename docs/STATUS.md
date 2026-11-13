@@ -1,6 +1,6 @@
 # STATUS PROJECT - PixelOS X6840 (Infinix Smart 20)
 
-**Terakhir update:** 2026-11-13 (diagnosa run #146: robolectric di-purge local manifest)
+**Terakhir update:** 2026-11-13 (diagnosa run #146-148: konflik local manifest + SimpleSettingsConfig)
 
 ---
 
@@ -178,6 +178,24 @@ Yang diterapkan:
   (developer menahan). Perbaikan verifikasi akhir belum selesai.
 - **Run `42933293380`** (commit `93d94f3`): **SEDANG BERJALAN** — patch 4.6
   final: verifikasi akhir cek semua elemen array, tidak hanya posisi pertama.
+- **Run `43378490070`** (run #147, 2026-11-13): **GAGAL** di Soong bootstrap
+  (tahap baru setelah robolectric diperbaiki):
+  - `packages/apps/DeviceDiagnostics/TradeInModeTests/Android.bp:22` — undefined
+    `vndk_utils`, `vts_kernel_utils`, `vts_vndk_utils`
+  - `system/libvintf/Android.bp:186` — `libassemblevintf` (modul sistem!) undefined
+    `libvts_vintf_test_common`
+  - **Perbaikan:** hapus 7 baris remove-project VTS dari build.yml.
+- **Run `43384832216`** (run #148, 2026-11-13): **GAGAL** lagi di Soong bootstrap
+  (satu layer lebih jauh):
+  - `cts/tests/tests/neuralnetworks/benchmark/Android.bp:20` & `test/vts-testcase/
+    hal/neuralnetworks/{V1_2,V1_3}/benchmark/java/Android.bp:23` — undefined
+    `libnnbenchmark_jni`, `NeuralNetworksApiBenchmark_Lib`, `test_mlts_models_assets`
+  - `packages/apps/SimpleSettingsConfig/Android.bp:16` — `SimpleSettingsConfig`
+    undefined `org.lineageos.platform.internal` (lineage-sdk tidak ada di manifest
+    PixelOS; file bp-nya dihidupkan lagi oleh fix-source-tree versi lama)
+  - **Perbaikan:** hapus remove-project `mlts/benchmark` + `mlts/models`;
+    `fix-source-tree.sh` kini MENONAKTIFKAN (bukan menghidupkan) file bp
+    SimpleSettingsConfig.
 - **Run `42965165542`** (run #146, commit `a1e1f03`, 2026-11-11): **GAGAL** di
   Soong bootstrap (step Build, ~1m20s setelah mka mulai). Error aktual:
   - `prebuilts/misc/common/robolectric/Android.bp:10:1` —
