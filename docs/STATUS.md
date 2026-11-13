@@ -1,6 +1,6 @@
 # STATUS PROJECT - PixelOS X6840 (Infinix Smart 20)
 
-**Terakhir update:** 2026-11-10 (perbaikan audit menyeluruh)
+**Terakhir update:** 2026-11-13 (diagnosa run #146: robolectric di-purge local manifest)
 
 ---
 
@@ -178,6 +178,21 @@ Yang diterapkan:
   (developer menahan). Perbaikan verifikasi akhir belum selesai.
 - **Run `42933293380`** (commit `93d94f3`): **SEDANG BERJALAN** — patch 4.6
   final: verifikasi akhir cek semua elemen array, tidak hanya posisi pertama.
+- **Run `42965165542`** (run #146, commit `a1e1f03`, 2026-11-11): **GAGAL** di
+  Soong bootstrap (step Build, ~1m20s setelah mka mulai). Error aktual:
+  - `prebuilts/misc/common/robolectric/Android.bp:10:1` —
+    `robolectric-android-all-prebuilts` depends on undefined module
+    `robolectric-host-android_all`.
+  - **Analisis:** `robolectric-host-android_all` didefinisikan di
+    `platform/external/robolectric/Android.bp:112`, tetapi repo itu
+    **dibuang dari sync** oleh local manifest `drop-unused-arm64.xml`
+    (run mulai 2026-11-10, strategi hemat disk). Semua error sebelumnya
+    sudah teratasi — ini sisa konflik strategi "drop test project".
+  - **Perbaikan:** hapus `<remove-project name="platform/external/robolectric"/>`
+    dan `<remove-project name="platform/test/robolectric-extensions"/>` dari
+    build.yml; tambah `scripts/diagnose-undefined-mods.sh` + step workflow
+    "Diagnose build failure" supaya error undefined module berikutnya langsung
+    menunjuk repo yang harus dipulihkan.
 
 ---
 
