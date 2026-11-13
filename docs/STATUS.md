@@ -1,6 +1,6 @@
 # STATUS PROJECT - PixelOS X6840 (Infinix Smart 20)
 
-**Terakhir update:** 2026-11-13 (diagnosa run #146-148: konflik local manifest + SimpleSettingsConfig)
+**Terakhir update:** 2026-11-13 (diagnosa run #146-149: sisa referensi repo yang di-drop)
 
 ---
 
@@ -185,6 +185,15 @@ Yang diterapkan:
   - `system/libvintf/Android.bp:186` — `libassemblevintf` (modul sistem!) undefined
     `libvts_vintf_test_common`
   - **Perbaikan:** hapus 7 baris remove-project VTS dari build.yml.
+- **Run `43390192963`** (run #149, 2026-11-13): **GAGAL** di Soong bootstrap
+  (tahap baru lagi setelah fix MLTS + SimpleSettingsConfig):
+  - `platform_testing/Android.bp:5` — `platform_tests` depends on undefined
+    `CuttlefishRilTests` + `CuttlefishWifiTests` (repo `device/google/cuttlefish`
+    di-drop local manifest sejak commit `47dd1d9`; sejak commit `e2a971ff`
+    platform_testing di-sync kembali, referensinya jadi terlihat).
+  - **Perbaikan:** `fix-source-tree.sh` section 4.9 membuang kedua referensi
+    dari `platform_testing/**/Android.bp` (test_suites, bukan bagian ROM) —
+    tidak perlu restore repo cuttlefish yang besar.
 - **Run `43384832216`** (run #148, 2026-11-13): **GAGAL** lagi di Soong bootstrap
   (satu layer lebih jauh):
   - `cts/tests/tests/neuralnetworks/benchmark/Android.bp:20` & `test/vts-testcase/
