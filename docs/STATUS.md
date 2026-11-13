@@ -1,6 +1,6 @@
 # STATUS PROJECT - PixelOS X6840 (Infinix Smart 20)
 
-**Terakhir update:** 2026-11-13 (diagnosa run #146-152: sisa referensi repo yang di-drop)
+**Terakhir update:** 2026-11-14 (diagnosa run #146-156; fix mojibake YAML; run #157 berjalan)
 
 ---
 
@@ -194,6 +194,29 @@ Yang diterapkan:
   - **Perbaikan:** restore repo gcc dari local manifest (`60f3cefd`) DAN hapus
     dari daftar `rm -rf` di step Reclaim (`9cdbfe55`). Run #151 (`60f3cefd`)
     sengaja DIBATALKAN karena hanya memperbaiki separuh masalah.
+- **Run `43424908491`** (run #154, 2026-11-13): **GAGAL** di Soong bootstrap.
+  Section 4.10 (Virtualization) BERHASIL — error baru:
+  `hardware/interfaces/gatekeeper/...:58` & `keymint/...:182` butuh
+  `com.google.cf.apex.key`/`certificate` (milik Cuttlefish yang di-drop).
+  **Perbaikan:** section 4.11 `fix-source-tree.sh` — ganti ke kunci HAL baku
+  `com.android.hardware.key`/`:com.android.hardware.certificate`
+  (dari `hardware/interfaces/apexkey`, dipakai semua HAL apex lain).
+- **Run `43446219980`** (run #155, 2026-11-13): **GAGAL** di Soong bootstrap.
+  Section 4.11 BERHASIL — error baru: ratusan modul di
+  `art/test/Android.run-test.bp` butuh modul undefined `rewrapper`.
+  **Investigasi:** `run_test_build.py` memakai `--rewrapper` (RBE / Remote
+  Build Execution). Setelah pencarian recursive-tree di 10+ repo AOSP, modul
+  `rewrapper` ditemukan didefinisikan di
+  `platform/prebuilts/remoteexecution-client/Android.bp` (satu-satunya modul
+  di repo itu) — repo yang ada di daftar remove-project.
+  **Perbaikan:** pulihkan `prebuilts/remoteexecution-client` (commit
+  `a5c1f54d` + koreksi `bff08d09`).
+- **Run `43525779009`** (run #156, 2026-11-13): **GAGAL TANPA JOB** (workflow
+  invalid). Penyebab: commit koreksi di atas mengalami double-encoding UTF-8
+  (em-dash `—` menjadi karakter kontrol U+0080/U+0094) → YAML menolak
+  karakter kontrol. **Perbaikan:** commit `2eb6fc55` — mojibake diperbaiki,
+  YAML divalidasi (PyYAML) sebelum di-push. **Pelajaran: semua push file
+  ber-UTF-8 WAJIB lewat Python base64, bukan btoa JavaScript.**
 - **Run `43410021847`** (run #152, 2026-11-13): **GAGAL** di Soong bootstrap
   (satu layer lebih jauh lagi):
   - `packages/modules/Virtualization/build/microdroid/initrd/Android.bp:65,76`
