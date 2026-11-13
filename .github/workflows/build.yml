@@ -230,7 +230,9 @@ jobs:
                  prebuilts/android-emulator \
                  device/google/cuttlefish_prebuilts \
                  prebuilts/bazel/linux-x86_64 \
-                 prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8 \
+                 # NB: prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8
+                 #     JANGAN dihapus — modulnya (gcc.lib/sysroot, trusty
+                 #     dirgroup) direferensikan prebuilts/rust & trusty.
                  external/openwrt-prebuilts 2>/dev/null || true
           echo "=== Disk setelah reclaim ==="; df -h /
           echo "=== Ukuran source ==="; du -sh . 2>/dev/null || true
