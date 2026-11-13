@@ -123,6 +123,12 @@ jobs:
             <!-- MinGW tetap dipertahankan: diperlukan untuk libwinpthread yang
                  dihasilkan otomatis oleh Soong untuk modul Windows target. -->
             <remove-project name="platform/external/openwrt-prebuilts" />
+            <!-- VTS JANGAN di-remove (pelajaran run #147):
+                 system/libvintf/Android.bp (libassemblevintf) butuh
+                 libvts_vintf_test_common, dan packages/apps/DeviceDiagnostics/
+                 TradeInModeTests butuh vndk_utils / vts_kernel_utils /
+                 vts_vndk_utils — semuanya didefinisikan di repo VTS.
+                 Repo VTS test-only & kecil; tetap disinkronkan. -->
             <!-- Test suites (CTS/VTS/MTS): tidak ikut di build ROM. -->
             <!-- robolectric JANGAN di-remove (pelajaran run #146):
                  prebuilts/misc/common/robolectric/Android.bp tetap ter-sync dan
@@ -145,13 +151,6 @@ jobs:
             <remove-project name="platform/test/mlts/models" />
             <remove-project name="platform/test/mts" />
             <remove-project name="platform/test/suite_harness" />
-            <remove-project name="platform/test/vts" />
-            <remove-project name="platform/test/vts-testcase/hal" />
-            <remove-project name="platform/test/vts-testcase/kernel" />
-            <remove-project name="platform/test/vts-testcase/nbu" />
-            <remove-project name="platform/test/vts-testcase/performance" />
-            <remove-project name="platform/test/vts-testcase/security" />
-            <remove-project name="platform/test/vts-testcase/vndk" />
           </manifest>
           XML
 
