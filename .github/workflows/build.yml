@@ -141,6 +141,12 @@ jobs:
                  cts/tests/tests/neuralnetworks/benchmark/Android.bp dan
                  test/vts-testcase/hal/neuralnetworks/*/benchmark/java/Android.bp.
                  Repo kecil; tetap disinkronkan. -->
+            <!-- remoteexecution-client JANGAN di-remove (pelajaran run #155):
+                 Android.bp repo ini mendefinisikan modul "rewrapper"
+                 (tool RBE/Remote Build Execution) yang direferensikan
+                 ratusan modul di art/test/Android.run-test.bp.
+                 Sekitar 100-200 MB; tetap disinkronkan. -->
+            <remove-project name="platform/prebuilts/remoteexecution-client" />
             <!-- Test suites (CTS/VTS/MTS): tidak ikut di build ROM. -->
             <!-- robolectric JANGAN di-remove (pelajaran run #146):
                  prebuilts/misc/common/robolectric/Android.bp tetap ter-sync dan
@@ -154,7 +160,6 @@ jobs:
             <remove-project name="platform/developers/build" />
             <remove-project name="platform/developers/samples/android" />
             <remove-project name="platform/prebuilts/asuite" />
-            <remove-project name="platform/prebuilts/remoteexecution-client" />
             <remove-project name="platform/test/app_compat/csuite" />
             <remove-project name="platform/test/catbox" />
             <remove-project name="platform/test/cts-root" />
