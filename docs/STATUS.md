@@ -1,6 +1,6 @@
 # STATUS PROJECT - PixelOS X6840 (Infinix Smart 20)
 
-**Terakhir update:** 2026-11-13 (diagnosa run #146-149: sisa referensi repo yang di-drop)
+**Terakhir update:** 2026-11-13 (diagnosa run #146-152: sisa referensi repo yang di-drop)
 
 ---
 
@@ -185,6 +185,24 @@ Yang diterapkan:
   - `system/libvintf/Android.bp:186` — `libassemblevintf` (modul sistem!) undefined
     `libvts_vintf_test_common`
   - **Perbaikan:** hapus 7 baris remove-project VTS dari build.yml.
+- **Run `43403885031`** (run #150, 2026-11-13): **GAGAL** di Soong bootstrap
+  (satu layer lebih jauh setelah fix Cuttlefish):
+  - `prebuilts/rust/Android.bp:539` — `rustc` butuh `gcc.lib/lib32/lib64/sysroot`
+  - `trusty/vendor/google/aosp/scripts/Android.bp:21` — butuh
+    `trusty_dirgroup_prebuilts_gcc_linux-x86_host_x86_64-linux-glibc2.17-4.8`
+  - Semua modul itu didefinisikan di repo gcc x86_64 prebuilts yang di-drop.
+  - **Perbaikan:** restore repo gcc dari local manifest (`60f3cefd`) DAN hapus
+    dari daftar `rm -rf` di step Reclaim (`9cdbfe55`). Run #151 (`60f3cefd`)
+    sengaja DIBATALKAN karena hanya memperbaiki separuh masalah.
+- **Run `43410021847`** (run #152, 2026-11-13): **GAGAL** di Soong bootstrap
+  (satu layer lebih jauh lagi):
+  - `packages/modules/Virtualization/build/microdroid/initrd/Android.bp:65,76`
+    — `microdroid_gki-*_initrd_gen_x86_64` butuh `microdroid_gki_modules-*-x86_64`
+    (repo `kernel/prebuilts/{6.6,6.12}/x86-64` di-drop). Host-tool microdroid
+    x86_64, tidak relevan untuk device arm64.
+  - **Perbaikan:** `fix-source-tree.sh` section 4.10 membuang baris srcs yang
+    mereferensikan kernel prebuilt x86-64 di Virtualization (definisi modul
+    tetap ada).
 - **Run `43390192963`** (run #149, 2026-11-13): **GAGAL** di Soong bootstrap
   (tahap baru lagi setelah fix MLTS + SimpleSettingsConfig):
   - `platform_testing/Android.bp:5` — `platform_tests` depends on undefined
