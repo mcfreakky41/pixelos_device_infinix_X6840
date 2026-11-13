@@ -100,11 +100,18 @@ fi
 # ============================================================
 echo ">>> Memperbaiki SimpleSettingsConfig (butuh lineage-sdk yang tidak ada)..."
 
-if [ -f packages/apps/SimpleSettingsConfig/Android.bp.disabled ] \
-   && [ ! -f packages/apps/SimpleSettingsConfig/Android.bp ]; then
-    mv packages/apps/SimpleSettingsConfig/Android.bp.disabled \
-       packages/apps/SimpleSettingsConfig/Android.bp
-    ok "dipulihkan: packages/apps/SimpleSettingsConfig/Android.bp"
+# Modul ini bergantung pada org.lineageos.platform.internal (lineage-sdk)
+# yang TIDAK ada di manifest PixelOS sixteen. Permintaan paket sudah dibuang
+# dari vendor/aosp (langkah 3 di atas); DEFINISI modulnya juga harus
+# dinonaktifkan supaya Soong tidak menganalisis file yang melulu.
+# Pelajaran run #148: hidupkan lagi file-nya = bootstrap gagal.
+SSC_BP="packages/apps/SimpleSettingsConfig/Android.bp"
+if [ -f "$SSC_BP" ]; then
+    mv "$SSC_BP" "$SSC_BP.disabled" \
+        && ok "SimpleSettingsConfig Android.bp dinonaktifkan" \
+        || warn "gagal menonaktifkan SimpleSettingsConfig Android.bp"
+elif [ -f "$SSC_BP.disabled" ]; then
+    ok "SimpleSettingsConfig Android.bp sudah dinonaktifkan"
 fi
 
 python3 - <<'PYEOF'
@@ -340,6 +347,7 @@ check_absent() { # desc, path
     if [ -e "$2" ]; then warn "masih ada: $2 ($1)"; else ok "$1"; fi
 }
 
+check_absent "SimpleSettingsConfig bp dinonaktifkan" packages/apps/SimpleSettingsConfig/Android.bp
 check_absent "hardware/qcom sudah hilang"      hardware/qcom
 check_absent "hardware/qcom-caf sudah hilang"  hardware/qcom-caf
 check_absent "vendor/qcom sudah hilang"        vendor/qcom
