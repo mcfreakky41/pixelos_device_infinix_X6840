@@ -123,14 +123,18 @@ jobs:
             <!-- MinGW tetap dipertahankan: diperlukan untuk libwinpthread yang
                  dihasilkan otomatis oleh Soong untuk modul Windows target. -->
             <remove-project name="platform/external/openwrt-prebuilts" />
-            <!-- Test suites (CTS/VTS/MTS/robolectric): tidak ikut di build ROM. -->
+            <!-- Test suites (CTS/VTS/MTS): tidak ikut di build ROM. -->
+            <!-- robolectric JANGAN di-remove (pelajaran run #146):
+                 prebuilts/misc/common/robolectric/Android.bp tetap ter-sync dan
+                 bergantung pada modul robolectric-host-android_all yang didefinisikan
+                 di platform/external/robolectric. Membuang repo itu membuat Soong
+                 bootstrap gagal: "depends on undefined module". Repo kecil, tetap sync. -->
             <!-- CTS tetap dipertahankan: diperlukan untuk json, vogarexpectlib,
                  cts_defaults, dll yang diminta oleh libcore, libnativehelper, dll. -->
             <!-- platform_testing tetap dipertahankan: diperlukan untuk sts_defaults -->
             <remove-project name="device/google/cuttlefish" />
             <remove-project name="platform/developers/build" />
             <remove-project name="platform/developers/samples/android" />
-            <remove-project name="platform/external/robolectric" />
             <remove-project name="platform/prebuilts/asuite" />
             <remove-project name="platform/prebuilts/remoteexecution-client" />
             <remove-project name="platform/test/app_compat/csuite" />
@@ -140,7 +144,6 @@ jobs:
             <remove-project name="platform/test/mlts/benchmark" />
             <remove-project name="platform/test/mlts/models" />
             <remove-project name="platform/test/mts" />
-            <remove-project name="platform/test/robolectric-extensions" />
             <remove-project name="platform/test/suite_harness" />
             <remove-project name="platform/test/vts" />
             <remove-project name="platform/test/vts-testcase/hal" />
@@ -555,6 +558,16 @@ jobs:
           echo "=== Hasil image ==="
           ls -lh out/target/product/X6840/*.img 2>/dev/null || true
           echo "=== Disk setelah build ==="; df -h /
+
+      # Diagnostik kegagalan build (otomatis): kenali modul undefined yang
+      # berasal dari repo yang di-drop di local manifest, supaya run berikutnya
+      # langsung tahu baris remove-project mana yang harus dipulihkan.
+      - name: Diagnose build failure
+        if: failure()
+        run: |
+          cd ~/android/pixelos
+          [ -f build.log ] || { echo "!! build.log tidak ada (build mungkin gagal sebelum mka)"; exit 0; }
+          bash "$GITHUB_WORKSPACE/device-tree/scripts/diagnose-undefined-mods.sh" build.log || true
 
       # Validasi wajib sebelum upload: jangan pernah menganggap build berhasil
       # kalau image yang dibutuhkan untuk flashing tidak ada / berukuran nol.
