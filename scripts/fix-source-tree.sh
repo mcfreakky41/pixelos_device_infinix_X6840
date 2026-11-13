@@ -385,20 +385,27 @@ fi
 # ============================================================
 # 4.10 Virtualization (microdroid): buang referensi ke kernel
 #      prebuilts x86-64 yang di-drop local manifest.
-#      Pelajaran run #152: 'microdroid_gki-{15-6.6,16-6.12}_initrd_gen_x86_64'
-#      butuh microdroid_gki_modules-*-x86_64 dari repo
+#      Pelajaran run #152 & #153 (patch pertama salah pola: referensi
+#      lokal memang berbentuk ":nama_modul" — ada COLON setelah kutip):
+#      'microdroid_gki-*_initrd_gen_x86_64' butuh
+#      microdroid_gki_modules-*-x86_64 dari repo
 #      kernel/prebuilts/{6.6,6.12}/x86-64 yang tidak di-sync.
-#      Keduanya host-tool/VIRT microdroid x86_64 — tidak relevan
-#      untuk build image device arm64. Hapus HANYA baris srcs-nya;
-#      definisi modul tetap ada supaya tidak memicu error baru.
+#      Host-tool microdroid x86_64 — tidak relevan untuk device arm64.
+#      Hapus HANYA baris yang menyebut nama modul itu; definisi modul
+#      lain tetap ada.
 # ============================================================
-echo ">>> Membuang referensi kernel prebuilt x86-64 dari Virtualization..."
-KX_PAT='"(microdroid_gki_modules-android15-6.6-x86_64|microdroid_gki_modules-android16-6.12-x86_64)"'
-if [ -d packages/modules/Virtualization ]; then
-    KX_FILES=$(grep -rl --include=Android.bp -E "$KX_PAT" packages/modules/Virtualization 2>/dev/null || true)
-    if [ -n "$KX_FILES" ]; then
-        while IFS= read -r F; do
-            python3 - "$F" <<'PYEOF'
+echo ">>> Membuang referensi kernel prebuilt x86-64 (microdroid GKI x86_64)..."
+KX_PAT='microdroid_gki_modules-android15-6.6-x86_64|microdroid_gki_modules-android16-6.12-x86_64'
+KX_FILES=""
+for d in build packages packages/modules frameworks external system art test device vendor hardware prebuilts platform_testing; do
+    [ -d "$d" ] || continue
+    hit=$(grep -rl --include=Android.bp -E "$KX_PAT" "$d" 2>/dev/null || true)
+    KX_FILES="$KX_FILES $hit"
+done
+if [ -n "$(echo "$KX_FILES" | tr -d ' ')" ]; then
+    for F in $KX_FILES; do
+        [ -f "$F" ] || continue
+        python3 - "$F" <<'PYEOF'
 import sys
 p = sys.argv[1]
 targets = ("microdroid_gki_modules-android15-6.6-x86_64",
@@ -406,7 +413,7 @@ targets = ("microdroid_gki_modules-android15-6.6-x86_64",
 lines = open(p, encoding="utf-8").read().split("\n")
 out, removed = [], 0
 for ln in lines:
-    if any(('"%s"' % t) in ln for t in targets):
+    if any(t in ln for t in targets):
         removed += 1
         continue
     out.append(ln)
@@ -414,15 +421,12 @@ if removed:
     open(p, "w", encoding="utf-8").write("\n".join(out))
     print("  OK  : %d baris referensi kernel prebuilt x86-64 dibuang dari %s" % (removed, p))
 else:
-    print("  OK  : tidak ada referensi kernel prebuilt x86-64 di %s" % p)
+    print("  OK  : tidak ada baris referensi di %s" % p)
 PYEOF
-            [ $? -eq 0 ] || warn "gagal bersihkan referensi kernel prebuilt x86-64: $F"
-        done <<< "$KX_FILES"
-    else
-        ok "tidak ada referensi kernel prebuilt x86-64 di Virtualization"
-    fi
+        [ $? -eq 0 ] || warn "gagal bersihkan referensi kernel prebuilt x86-64: $F"
+    done
 else
-    ok "packages/modules/Virtualization tidak ada (dilewati)"
+    ok "tidak ada referensi kernel prebuilt x86-64 di seluruh tree (sudah bersih)"
 fi
 
 # ============================================================
