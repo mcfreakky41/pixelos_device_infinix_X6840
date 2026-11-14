@@ -522,9 +522,17 @@ jobs:
         run: |
           cd ~/android/pixelos
           echo "=== Disk sebelum build ==="; df -h /
-          export LLVM_PREBUILTS_VERSION=clang-r584948b
-          export LLVM_RELEASE_VERSION=22
-          echo ">>> Clang override: version=$LLVM_PREBUILTS_VERSION short=$LLVM_RELEASE_VERSION"
+          # CATATAN CLANG (pelajaran run #158):
+          # JANGAN set env LLVM_PREBUILTS_VERSION / LLVM_RELEASE_VERSION.
+          # Override itu berlaku GLOBAL termasuk verifikasi path di
+          # prebuilts/clang/host/linux-x86 (repo itu HANYA punya clang-r547379),
+          # sehingga soong gagal: "module source path ... clang-r584948b/...
+          # does not exist". Resolusi yang benar memakai VERSI DEFAULT tree
+          # (clang-r547379 + LLVM 20), karena:
+          #   - linux-x86   : clang-r547379 NYATA (file lengkap)
+          #   - linux-arm64 : symlink clang-r547379 -> clang-r584948b
+          #                   + symlink lib/clang/20 -> 22
+          #     (dibuat oleh step "Drop ARM64 host prebuilts (clang)").
 
           source build/envsetup.sh
           export CCACHE_EXEC=$(which ccache)
