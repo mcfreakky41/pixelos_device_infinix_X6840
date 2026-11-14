@@ -462,6 +462,61 @@ else
     ok "tidak ada referensi key/certificate cuttlefish (sudah bersih)"
 fi
 
+
+# ============================================================
+# 4.12 Trusty: buang referensi ke modul prebuilt QEMU Trusty.
+#      Modul trusty_qemu_system_aarch64 + trusty_qemu_shared_files
+#      didefinisikan di prebuilts/android-emulator/trusty-x86_64
+#      (repo GB-scale; di-drop DAN dihapus di step Reclaim).
+#      Referensinya hanya di trusty/vendor/google/aosp/scripts/Android.bp:
+#        - genrule_tee_cmd_template  (QEMU_PREBUILTS_DIR=...)
+#        - genrule "trusty_tee_package" tools -> enabled=false default
+#          (soong_config trusty_tee.enabled; TIDAK diaktifkan di build ini)
+#      Repo konsumen lain (device/generic/trusty) TIDAK di-sync sama sekali
+#      (dihapus manifest PixelOS sendiri). => referensi ini kode mati;
+#      patch aman. (Pelajaran run #157.)
+# ============================================================
+echo ">>> Membersihkan referensi modul prebuilt QEMU Trusty..."
+TQ_PAT='trusty_qemu_system_aarch64|trusty_qemu_shared_files'
+TQ_FILES=""
+for d in trusty device hardware packages system external vendor build platform_testing; do
+    [ -d "$d" ] || continue
+    hit=$(grep -rl --include=Android.bp -E "$TQ_PAT" "$d" 2>/dev/null || true)
+    TQ_FILES="$TQ_FILES $hit"
+done
+if [ -n "$(echo "$TQ_FILES" | tr -d ' ')" ]; then
+    for F in $TQ_FILES; do
+        [ -f "$F" ] || continue
+        python3 - "$F" <<'PYEOF'
+import re as RE, sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+orig = s
+# 1) $(location modul) -> $(genDir) supaya string cmd tetap valid
+s = s.replace("$(location trusty_qemu_system_aarch64)", "$(genDir)")
+s = s.replace("$(location trusty_qemu_shared_files)", "$(genDir)")
+# 2) buang token "nama_modul" di mana pun (tools entry, array inline)
+for mod in ("trusty_qemu_system_aarch64", "trusty_qemu_shared_files"):
+    s = RE.sub(r'"%s"[ \t]*,[ \t]*' % RE.escape(mod), '', s)
+    s = RE.sub(r',[ \t]*"%s"' % RE.escape(mod), '', s)
+    s = RE.sub(r'"%s"' % RE.escape(mod), '', s)
+# 3) rapikan koma menggantung
+s = RE.sub(r',[ \t]*\n([ \t]*)\n', r',\n\1\n', s)
+s = RE.sub(r',[ \t]*\n([ \t]*)\]', r'\n\1]', s)
+s = RE.sub(r'\[[ \t]*,[ \t]*', '[', s)
+s = RE.sub(r',[ \t]*,[ \t]*', ', ', s)
+if s != orig:
+    open(p, "w", encoding="utf-8").write(s)
+    print("  OK  : referensi QEMU Trusty dibuang dari", p)
+else:
+    print("  OK  : tidak ada referensi QEMU Trusty di", p)
+PYEOF
+        [ $? -eq 0 ] || warn "gagal bersihkan referensi QEMU Trusty: $F"
+    done
+else
+    ok "tidak ada referensi modul QEMU Trusty (sudah bersih)"
+fi
+
 # ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
