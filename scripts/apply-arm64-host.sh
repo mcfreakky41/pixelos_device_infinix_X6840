@@ -821,24 +821,30 @@ fi
 # =============================================================================
 # PATCH 0018 - prebuilts/rust/soong/rustprebuilts.go: prebuilt std host MUsl arm64
 #
-#   Source check (AOSP android-16.0.0_r1 + PATCH 0015/0017):
-#     - arch.go:318: LinuxMusl = newOsType("linux_musl", Host, false, X86, X86_64,
-#       Arm64, Arm) -> variant host "linux_musl_arm64" DIBANGKITKAN untuk
-#       host_supported module (ratusan crate di external/rust/android-crates-io
-#       dan external/cronet/.../chromium_crates_io).
-#     - constructLibProps()/props.Target hanya mendaftarkan Linux_musl_x86_64/x86
-#       -> modul "prebuilt_libstd" DISABLED untuk linux_musl_arm64 ->
-#       bootstrap gagal: "depends on disabled module prebuilt_libstd"
-#       (pelajaran run #163).
+#   PENTING — kenapa registrasi musl arm64 ditaruh di cabang GLIBC+arm64:
+#     Host build kita = linux_glibc + arm64. Load hook constructLibProps()
+#     memilih target prebuilt berdasar BuildOS/BuildArch SAAT INI, jadi cabang
+#     "BuildOS == android.LinuxMusl" TIDAK PERNAH dieksekusi di sini. Tapi soong
+#     tetap membangkitkan variant host "linux_musl_arm64" untuk SEMUA modul
+#     host_supported (LinuxMusl sudah memuat Arm64 sejak dulu: arch.go:318),
+#     sehingga ratusan crate (external/rust/android-crates-io, external/cronet)
+#     me-resolve "prebuilt_libstd" untuk variant itu. Karena itu prebuilt musl
+#     arm64 WAJIB didaftarkan juga dari cabang glibc+arm64.
+#     (Pelajaran run #163 & #165: versi lama patch ini mendaftarkan di cabang
+#     LinuxMusl -> tak pernah jalan -> "depends on disabled module".)
 #
-#   Fix: daftarkan prebuilt std musl arm64 dari prebuilts/rust/linux-arm64/
-#   (komponen rust-std-aarch64-unknown-linux-musl, dipasang oleh workflow).
+#   Fix:
+#     1) props.Target: field Linux_musl_arm64 (regex, alignment-agnostic).
+#     2) constructLibProps(): setelah registrasi glibc arm64, daftarkan juga
+#        prebuilt musl arm64 dari lib/rustlib/aarch64-unknown-linux-musl/lib
+#        (komponen dipasang oleh step "Setup Rust toolchain (arm64)").
+#     3) rustToolchainFilegroupFactory(): triple "aarch64-unknown-linux-musl".
 # =============================================================================
 step "0018" "prebuilts/rust/soong/rustprebuilts.go: prebuilt std host musl aarch64"
 RPRE="prebuilts/rust/soong/rustprebuilts.go"
 if [ -f "$RPRE" ]; then
   python3 - "$RPRE" <<'PY'
-import sys
+import re, sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
 
@@ -846,62 +852,51 @@ MARK = "arm64-host: prebuilt std Rust musl untuk host aarch64"
 if MARK in s:
     print("    SKIP: sudah dipatch"); sys.exit(0)
 
-# --- 1) props.Target struct (state setelah PATCH 0017) ---
-old1 = '''\t\tLinux_musl_x86_64  targetProps
-\t\tLinux_musl_x86     targetProps
-\t\tDarwin_x86_64      targetProps'''
-new1 = '''\t\tLinux_musl_x86_64  targetProps
-\t\tLinux_musl_x86     targetProps
-\t\tDarwin_x86_64      targetProps
-\t\t// arm64-host: prebuilt std Rust musl untuk host aarch64.
-\t\tLinux_musl_arm64 targetProps'''
+# --- 1) props.Target struct: tambah field Linux_musl_arm64 ---
+m = re.search(r'\t\tDarwin_x86_64\s+targetProps', s)
+if not m:
+    print("    WARN: anchor #1 (struct props.Target) tak cocok"); sys.exit(1)
+ins = (m.group(0)
+       + '\n\t\t// arm64-host: prebuilt std Rust musl untuk host aarch64.\n'
+       + '\t\tLinux_musl_arm64 targetProps')
+s = s.replace(m.group(0), ins, 1)
 
-# --- 2) constructLibProps() cabang LinuxMusl ---
-old2 = '''\t\t} else if ctx.Config().BuildOS == android.LinuxMusl {
-\t\t\tp.Target.Linux_musl_x86_64.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "x86_64-unknown-linux-musl", rlib, solib)
-\t\t\tp.Target.Linux_musl_x86.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "i686-unknown-linux-musl", rlib, solib)'''
-new2 = '''\t\t} else if ctx.Config().BuildOS == android.LinuxMusl {
-\t\t\tp.Target.Linux_musl_x86_64.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "x86_64-unknown-linux-musl", rlib, solib)
-\t\t\tp.Target.Linux_musl_x86.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "i686-unknown-linux-musl", rlib, solib)
-\t\t\t// arm64-host: prebuilt std Rust musl untuk host aarch64.
-\t\t\tif ctx.Config().BuildArch == android.Arm64 {
-\t\t\t\tp.Target.Linux_musl_arm64.addPrebuiltToTarget(ctx, name, rustDir, "linux-arm64", "aarch64-unknown-linux-musl", rlib, solib)
-\t\t\t}'''
-
-# --- 3) rustToolchainFilegroupFactory() cabang LinuxMusl ---
-old3 = '''\t\t} else if ctx.Config().BuildOS == android.LinuxMusl {
-\t\t\tif ctx.Config().BuildArch == android.X86_64 {
-\t\t\t\tarchTriple = "x86_64-unknown-linux-musl"
-\t\t\t} else {
-\t\t\t\tarchTriple = "i686-unknown-linux-musl"
-\t\t\t}'''
-new3 = '''\t\t} else if ctx.Config().BuildOS == android.LinuxMusl {
-\t\t\tif ctx.Config().BuildArch == android.X86_64 {
-\t\t\t\tarchTriple = "x86_64-unknown-linux-musl"
-\t\t\t} else if ctx.Config().BuildArch == android.Arm64 {
-\t\t\t\t// arm64-host: prebuilt std Rust musl untuk host aarch64.
-\t\t\t\tarchTriple = "aarch64-unknown-linux-musl"
-\t\t\t} else {
-\t\t\t\tarchTriple = "i686-unknown-linux-musl"
-\t\t\t}'''
-
-for idx, (o, n) in enumerate([(old1, new1), (old2, new2), (old3, new3)], start=1):
-    if o not in s:
-        print("    WARN: anchor #%d tak cocok, patch dibatalkan" % idx)
-        sys.exit(1)
-
-s = s.replace(old1, new1, 1)
+# --- 2) constructLibProps() cabang GLIBC+arm64 (BUKAN LinuxMusl!) ---
+old2 = 'p.Target.Linux_glibc_arm64.addPrebuiltToTarget(ctx, name, rustDir, "linux-arm64", "aarch64-unknown-linux-gnu", rlib, solib)'
+if old2 not in s:
+    print("    WARN: anchor #2 (constructLibProps glibc arm64) tak cocok"); sys.exit(1)
+new2 = (old2
+        + '\n\t\t\t// arm64-host: prebuilt std Rust musl untuk host aarch64.\n'
+        + '\t\t\tp.Target.Linux_musl_arm64.addPrebuiltToTarget(ctx, name, rustDir, "linux-arm64", "aarch64-unknown-linux-musl", rlib, solib)')
 s = s.replace(old2, new2, 1)
-s = s.replace(old3, new3, 1)
+
+# --- 3) rustToolchainFilegroupFactory() cabang LinuxMusl: triple arm64 ---
+pat3 = re.compile(r'(archTriple = "x86_64-unknown-linux-musl"\n)(\t+)else \{\n(\t+)(archTriple = "i686-unknown-linux-musl"\n)(\t+)\}')
+def r3(m):
+    t = m.group(2)
+    return (m.group(1) + t + '} else if ctx.Config().BuildArch == android.Arm64 {\n'
+            + t + '\t// arm64-host: prebuilt std Rust musl untuk host aarch64.\n'
+            + t + '\tarchTriple = "aarch64-unknown-linux-musl"\n'
+            + t + '} else {\n' + m.group(3) + m.group(4) + m.group(5) + '}')
+s2, n = pat3.subn(r3, s, count=1)
+if n == 1:
+    s = s2
+else:
+    print("    WARN: anchor #3 (filegroup LinuxMusl) tak cocok"); sys.exit(1)
+
 open(p, "w", encoding="utf-8").write(s)
-print("    OK  : props.Target + constructLibProps + archTriple musl arm64")
+print("    OK  : props.Target + constructLibProps glibc+arm64 + archTriple musl arm64")
 PY
 else
   warn "$RPRE tidak ada"
 fi
-
-# =============================================================================
-# =============================================================================
+# Verifikasi eksplisit (fail-loud): skrip ini tidak set -e, jadi kegagalan
+# python TIDAK menghentikan skrip — double-check penanda di sini.
+if grep -q "arm64-host: prebuilt std Rust musl untuk host aarch64" "$RPRE" 2>/dev/null; then
+  ok "0018 rustprebuilts musl arm64"
+else
+  warn "verifikasi GAGAL: 0018 rustprebuilts musl arm64 ($RPRE belum dipatch)"
+fi
 
 # =============================================================================
 # VERIFIKASI AKHIR (fail-closed)
@@ -940,6 +935,7 @@ require_marker "0014 jar-wrapper -Xmx8g"                build/soong/scripts/jar-
 require_marker "0015 arch.go Linux + Arm64"             build/soong/android/arch.go "arm64-host: host aarch64 juga butuh varian linux_glibc_arm64"
 require_marker "0016 rust glibc arm64 toolchain"        build/soong/rust/config/arm_linux_host.go "linuxGlibcArm64ToolchainFactory"
 require_marker "0017 rustprebuilts arm64"               prebuilts/rust/soong/rustprebuilts.go "arm64-host: prebuilt std Rust untuk host aarch64"
+require_marker "0018 rustprebuilts musl arm64"           prebuilts/rust/soong/rustprebuilts.go "arm64-host: prebuilt std Rust musl untuk host aarch64"
 
 echo "--- info tambahan ---"
 grep -q 'filepath.Join("linux-x86", GetRustPrebuiltVersion' build/soong/rust/toolchain_library.go 2>/dev/null \
