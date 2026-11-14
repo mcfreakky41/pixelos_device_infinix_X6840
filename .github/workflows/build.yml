@@ -455,6 +455,49 @@ jobs:
           rm -rf "$JDK8_TARBALL" "$JDK8_EXTRACT"
           echo ">>> OK: JDK 8 arm64 lengkap"
 
+      - name: Setup JDK 21 tree (arm64, prebuilts/jdk/jdk21)
+        run: |
+          cd ~/android/pixelos
+          set -o pipefail
+          # Manifest hanya punya JDK 21 linux-x86. Patch apply-arm64-host.sh
+          # mengaktifkan modul "javap" (prebuilts/jdk/jdk21/Android.bp) untuk
+          # linux_musl_arm64 -> butuh tree JDK 21 arm64 LENGKAP di
+          # prebuilts/jdk/jdk21/linux-arm64. (Pelajaran run #162.)
+          # Path pakai variabel unik; TIDAK pakai find dengan pola nama
+          # (pelajaran run #161) — langsung ambil satu-satunya subdir hasil ekstrak.
+          JDK21_DIR="prebuilts/jdk/jdk21/linux-arm64"
+          JDK21_TARBALL="/tmp/jdk21arm64-tarball.tar.gz"
+          JDK21_EXTRACT="/tmp/jdk21arm64-extract"
+          if [ -x "$JDK21_DIR/bin/javap" ] && [ -f "$JDK21_DIR/lib/modules" ]; then
+            echo ">>> JDK 21 arm64 tree sudah ada, lewati"
+            exit 0
+          fi
+          rm -rf "$JDK21_DIR" "$JDK21_TARBALL" "$JDK21_EXTRACT"
+          mkdir -p "$JDK21_DIR" "$JDK21_EXTRACT"
+          echo ">>> unduh JDK 21 arm64 (Temurin, versi sama dgn setup-java runner)"
+          curl -fL --retry 3 -o "$JDK21_TARBALL" "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.13_9.tar.gz"
+          [ -s "$JDK21_TARBALL" ] || { echo "!! unduhan gagal/kosong"; ls -la "$JDK21_TARBALL"; exit 1; }
+          ls -la "$JDK21_TARBALL"
+          tar -xzf "$JDK21_TARBALL" -C "$JDK21_EXTRACT"
+          echo ">>> isi direktori ekstrak:"
+          ls -la "$JDK21_EXTRACT"
+          # satu-satunya subdir = root JDK hasil ekstrak (tanpa find name-matching)
+          JDK21_SRC=$(ls -d "$JDK21_EXTRACT"/*/ | head -1)
+          echo ">>> JDK21_SRC=$JDK21_SRC"
+          [ -n "$JDK21_SRC" ] && [ -x "$JDK21_SRC/bin/javap" ] || { echo "!! JDK21_SRC tidak valid (tidak ada bin/javap): '$JDK21_SRC'"; ls -la "$JDK21_EXTRACT"; exit 1; }
+          echo ">>> salin tree JDK 21 ke $JDK21_DIR"
+          cp -a "$JDK21_SRC/." "$JDK21_DIR/"
+          echo ">>> verifikasi (fail-fast)"
+          ls -la "$JDK21_DIR" | head -12
+          [ -x "$JDK21_DIR/bin/javap" ] || { echo "!! bin/javap tidak ada setelah cp"; exit 1; }
+          [ -f "$JDK21_DIR/lib/modules" ] || { echo "!! lib/modules tidak ada setelah cp"; exit 1; }
+          [ -f "$JDK21_DIR/conf/security/java.security" ] || { echo "!! conf/security/java.security tidak ada setelah cp"; exit 1; }
+          [ -f "$JDK21_DIR/lib/server/libjvm.so" ] || { echo "!! lib/server/libjvm.so tidak ada setelah cp"; exit 1; }
+          echo ">>> JDK 21 arm64 versi:"
+          "$JDK21_DIR/bin/javap" -version 2>&1 | head -2
+          rm -rf "$JDK21_TARBALL" "$JDK21_EXTRACT"
+          echo ">>> OK: JDK 21 arm64 tree lengkap"
+
       - name: Setup JDK 21
         uses: actions/setup-java@v6
         with:
