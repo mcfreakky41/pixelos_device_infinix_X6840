@@ -434,9 +434,12 @@ jobs:
           tar -xzf "$JDK8_TARBALL" -C "$JDK8_EXTRACT"
           echo ">>> isi direktori ekstrak:"
           ls -la "$JDK8_EXTRACT"
-          JDK8_SRC=$(find "$JDK8_EXTRACT" -maxdepth 1 -name "jdk*" -type d | head -1)
+          # -mindepth 1 WAJIB (pelajaran run #161): tanpa itu, find meng-match
+          # direktori extract sendiri (basename-nya juga mulai "jdk"), head -1
+          # mengambil root -> cp menyalin root (bukan isi JDK) -> bin/java hilang.
+          JDK8_SRC=$(find "$JDK8_EXTRACT" -mindepth 1 -maxdepth 1 -name "jdk*" -type d | head -1)
           echo ">>> JDK8_SRC=$JDK8_SRC"
-          [ -n "$JDK8_SRC" ] || { echo "!! direktori JDK tidak ditemukan"; ls -la "$JDK8_EXTRACT"; exit 1; }
+          [ -n "$JDK8_SRC" ] && [ -x "$JDK8_SRC/bin/java" ] || { echo "!! JDK8_SRC tidak valid (tidak ada bin/java): '$JDK8_SRC'"; ls -la "$JDK8_EXTRACT"; exit 1; }
           ls -la "$JDK8_SRC" | head -10
           echo ">>> salin tree JDK ke $JDK8_DIR"
           cp -a "$JDK8_SRC/." "$JDK8_DIR/"
