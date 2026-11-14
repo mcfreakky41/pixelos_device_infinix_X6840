@@ -372,6 +372,36 @@ jobs:
             echo "!! getPrebuilt() butuh TEPAT 1 libstd-*.rlib dan 1 libstd-*.so"
             exit 1
           fi
+          # ---- std MINGW arm64 (PATCH 0018) ----
+          # LinuxMusl SUDAH memuat Arm64 (soong/android/arch.go:318) sehingga
+          # host_supported module (ratusan crate di external/rust + external/cronet)
+          # mendapat variant linux_musl_arm64; PATCH 0018 mendaftarkan prebuilt std
+          # musl arm64 dari sini. (Pelajaran run #163: "depends on disabled module
+          # prebuilt_libstd".) Komponen resmi static.rust-lang.org.
+          MUSL_LIBDIR="$D/lib/rustlib/aarch64-unknown-linux-musl/lib"
+          if [ "$(ls "$MUSL_LIBDIR"/libstd-*.rlib 2>/dev/null | wc -l)" = "1" ] && [ "$(ls "$MUSL_LIBDIR"/libstd-*.so 2>/dev/null | wc -l)" = "1" ]; then
+            echo ">>> rust-std musl arm64 sudah ada, lewati"
+          else
+            echo ">>> unduh komponen rust-std ${RV} aarch64-unknown-linux-musl"
+            rm -rf /tmp/rustmusl && mkdir -p /tmp/rustmusl
+            if curl -fL --retry 3 -o /tmp/rustmusl/std.tar.gz "https://static.rust-lang.org/dist/rust-std-${RV}-aarch64-unknown-linux-musl.tar.gz" \
+               && tar xzf /tmp/rustmusl/std.tar.gz -C /tmp/rustmusl; then
+              ( cd "/tmp/rustmusl/rust-std-${RV}-aarch64-unknown-linux-musl" && sh ./install.sh --prefix="$D" --disable-ldconfig --components=rust-std-aarch64-unknown-linux-musl )
+              rm -rf /tmp/rustmusl
+            else
+              echo "!! unduh rust-std musl arm64 gagal (bootstrap akan gagal di PATCH 0018)"
+              rm -rf /tmp/rustmusl
+              exit 1
+            fi
+          fi
+          n_rlib2=$(ls "$MUSL_LIBDIR"/libstd-*.rlib 2>/dev/null | wc -l)
+          n_so2=$(ls "$MUSL_LIBDIR"/libstd-*.so 2>/dev/null | wc -l)
+          echo ">>> libstd musl di $MUSL_LIBDIR: rlib=$n_rlib2 so=$n_so2"
+          if [ "$n_rlib2" != "1" ] || [ "$n_so2" != "1" ]; then
+            echo "!! getPrebuilt() musl butuh TEPAT 1 libstd-*.rlib dan 1 libstd-*.so"
+            ls -la "$MUSL_LIBDIR" | head -20 || true
+            exit 1
+          fi
           echo ">>> OK: rust host arm64 siap"
 
       - name: Setup Clang (arm64)
