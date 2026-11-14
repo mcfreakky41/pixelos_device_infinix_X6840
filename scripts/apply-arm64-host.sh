@@ -819,6 +819,91 @@ else
 fi
 
 # =============================================================================
+# PATCH 0018 - prebuilts/rust/soong/rustprebuilts.go: prebuilt std host MUsl arm64
+#
+#   Source check (AOSP android-16.0.0_r1 + PATCH 0015/0017):
+#     - arch.go:318: LinuxMusl = newOsType("linux_musl", Host, false, X86, X86_64,
+#       Arm64, Arm) -> variant host "linux_musl_arm64" DIBANGKITKAN untuk
+#       host_supported module (ratusan crate di external/rust/android-crates-io
+#       dan external/cronet/.../chromium_crates_io).
+#     - constructLibProps()/props.Target hanya mendaftarkan Linux_musl_x86_64/x86
+#       -> modul "prebuilt_libstd" DISABLED untuk linux_musl_arm64 ->
+#       bootstrap gagal: "depends on disabled module prebuilt_libstd"
+#       (pelajaran run #163).
+#
+#   Fix: daftarkan prebuilt std musl arm64 dari prebuilts/rust/linux-arm64/
+#   (komponen rust-std-aarch64-unknown-linux-musl, dipasang oleh workflow).
+# =============================================================================
+step "0018" "prebuilts/rust/soong/rustprebuilts.go: prebuilt std host musl aarch64"
+RPRE="prebuilts/rust/soong/rustprebuilts.go"
+if [ -f "$RPRE" ]; then
+  python3 - "$RPRE" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+
+MARK = "arm64-host: prebuilt std Rust musl untuk host aarch64"
+if MARK in s:
+    print("    SKIP: sudah dipatch"); sys.exit(0)
+
+# --- 1) props.Target struct (state setelah PATCH 0017) ---
+old1 = '''\t\tLinux_musl_x86_64  targetProps
+\t\tLinux_musl_x86     targetProps
+\t\tDarwin_x86_64      targetProps'''
+new1 = '''\t\tLinux_musl_x86_64  targetProps
+\t\tLinux_musl_x86     targetProps
+\t\tDarwin_x86_64      targetProps
+\t\t// arm64-host: prebuilt std Rust musl untuk host aarch64.
+\t\tLinux_musl_arm64 targetProps'''
+
+# --- 2) constructLibProps() cabang LinuxMusl ---
+old2 = '''\t\t} else if ctx.Config().BuildOS == android.LinuxMusl {
+\t\t\tp.Target.Linux_musl_x86_64.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "x86_64-unknown-linux-musl", rlib, solib)
+\t\t\tp.Target.Linux_musl_x86.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "i686-unknown-linux-musl", rlib, solib)'''
+new2 = '''\t\t} else if ctx.Config().BuildOS == android.LinuxMusl {
+\t\t\tp.Target.Linux_musl_x86_64.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "x86_64-unknown-linux-musl", rlib, solib)
+\t\t\tp.Target.Linux_musl_x86.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "i686-unknown-linux-musl", rlib, solib)
+\t\t\t// arm64-host: prebuilt std Rust musl untuk host aarch64.
+\t\t\tif ctx.Config().BuildArch == android.Arm64 {
+\t\t\t\tp.Target.Linux_musl_arm64.addPrebuiltToTarget(ctx, name, rustDir, "linux-arm64", "aarch64-unknown-linux-musl", rlib, solib)
+\t\t\t}'''
+
+# --- 3) rustToolchainFilegroupFactory() cabang LinuxMusl ---
+old3 = '''\t\t} else if ctx.Config().BuildOS == android.LinuxMusl {
+\t\t\tif ctx.Config().BuildArch == android.X86_64 {
+\t\t\t\tarchTriple = "x86_64-unknown-linux-musl"
+\t\t\t} else {
+\t\t\t\tarchTriple = "i686-unknown-linux-musl"
+\t\t\t}'''
+new3 = '''\t\t} else if ctx.Config().BuildOS == android.LinuxMusl {
+\t\t\tif ctx.Config().BuildArch == android.X86_64 {
+\t\t\t\tarchTriple = "x86_64-unknown-linux-musl"
+\t\t\t} else if ctx.Config().BuildArch == android.Arm64 {
+\t\t\t\t// arm64-host: prebuilt std Rust musl untuk host aarch64.
+\t\t\t\tarchTriple = "aarch64-unknown-linux-musl"
+\t\t\t} else {
+\t\t\t\tarchTriple = "i686-unknown-linux-musl"
+\t\t\t}'''
+
+for idx, (o, n) in enumerate([(old1, new1), (old2, new2), (old3, new3)], start=1):
+    if o not in s:
+        print("    WARN: anchor #%d tak cocok, patch dibatalkan" % idx)
+        sys.exit(1)
+
+s = s.replace(old1, new1, 1)
+s = s.replace(old2, new2, 1)
+s = s.replace(old3, new3, 1)
+open(p, "w", encoding="utf-8").write(s)
+print("    OK  : props.Target + constructLibProps + archTriple musl arm64")
+PY
+else
+  warn "$RPRE tidak ada"
+fi
+
+# =============================================================================
+# =============================================================================
+
+# =============================================================================
 # VERIFIKASI AKHIR (fail-closed)
 # -----------------------------------------------------------------------------
 # Skrip ini mengubah banyak bagian build system. Kalau satu patch wajib gagal
