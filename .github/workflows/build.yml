@@ -386,8 +386,14 @@ jobs:
             rm -rf /tmp/rustmusl && mkdir -p /tmp/rustmusl
             if curl -fL --retry 3 -o /tmp/rustmusl/std.tar.gz "https://static.rust-lang.org/dist/rust-std-${RV}-aarch64-unknown-linux-musl.tar.gz" \
                && tar xzf /tmp/rustmusl/std.tar.gz -C /tmp/rustmusl; then
-              ( cd "/tmp/rustmusl/rust-std-${RV}-aarch64-unknown-linux-musl" && sh ./install.sh --prefix="$D" --disable-ldconfig --components=rust-std-aarch64-unknown-linux-musl )
-              rm -rf /tmp/rustmusl
+              # PENTING (pelajaran run #164): --prefix harus ABSOLUT — installer
+              # berjalan di subshell /tmp/rustmusl/..., jadi --prefix="$D" (relatif)
+              # akan memasang komponen ke /tmp/rustmusl/.../prebuilts/rust/... .
+              # Pakai pola sama dengan komponen glibc: install ke /tmp lalu cp.
+              ( cd "/tmp/rustmusl/rust-std-${RV}-aarch64-unknown-linux-musl" && sh ./install.sh --prefix=/tmp/ruststage-musl --disable-ldconfig --components=rust-std-aarch64-unknown-linux-musl )
+              mkdir -p "$D"
+              cp -a /tmp/ruststage-musl/. "$D/"
+              rm -rf /tmp/rustmusl /tmp/ruststage-musl
             else
               echo "!! unduh rust-std musl arm64 gagal (bootstrap akan gagal di PATCH 0018)"
               rm -rf /tmp/rustmusl
