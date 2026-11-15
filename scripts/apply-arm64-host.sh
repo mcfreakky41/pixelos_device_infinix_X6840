@@ -871,7 +871,7 @@ new2 = (old2
 s = s.replace(old2, new2, 1)
 
 # --- 3) rustToolchainFilegroupFactory() cabang LinuxMusl: triple arm64 ---
-pat3 = re.compile(r'(archTriple = "x86_64-unknown-linux-musl"\n)(\t+)else \{\n(\t+)(archTriple = "i686-unknown-linux-musl"\n)(\t+)\}')
+pat3 = re.compile(r'(archTriple = "x86_64-unknown-linux-musl"\n)(\t+)\} else \{\n(\t+)(archTriple = "i686-unknown-linux-musl"\n)(\t+)\}')
 def r3(m):
     t = m.group(2)
     return (m.group(1) + t + '} else if ctx.Config().BuildArch == android.Arm64 {\n'
