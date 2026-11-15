@@ -592,6 +592,55 @@ PY
   fi
 fi
 
+
+# ============================================================
+# 4.14 Berberis intrinsics riscv64_to_x86_64: genrule tanpa tool host-only
+#      (pelajaran run #172)
+#
+#   genrule "libberberis_intrinsics_gen_inline_headers_riscv64_to_x86_64"
+#   memakai tool "gen_riscv64_to_x86_64_intrinsics" (cc_binary_host) yang
+#   DISABLED di host arm64 (tool chain riscv64->x86_64 hanya untuk host
+#   x86_64). Output header itu hanya dikonsumsi lewat
+#   "arch: { x86_64: { generated_headers: ... } }" -> di host arm64 tidak
+#   pernah dipakai. Solusi: buat genrule-nya mandiri (tulis file dummy),
+#   jauh lebih aman daripada mengaktifkan tool x86_64-only.
+# ============================================================
+echo ">>> Berberis riscv64_to_x86_64: genrule mandiri (arm64 host)"
+BERBIS="frameworks/libs/binary_translation/intrinsics/Android.bp"
+if [ ! -f "$BERBIS" ]; then
+  ok "tidak ada $BERBIS (dilewati)"
+elif grep -q 'arm64-host: berberis dummy' "$BERBIS" 2>/dev/null; then
+  ok "berberis genrule sudah dimandirkan"
+else
+  python3 - "$BERBIS" <<'PY' || warn "gagal mandirkan genrule berberis"
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+
+old = '''genrule {
+    name: "libberberis_intrinsics_gen_inline_headers_riscv64_to_x86_64",
+    out: ["berberis/intrinsics/intrinsics.h"],
+    srcs: [],
+    tools: ["gen_riscv64_to_x86_64_intrinsics"],
+    cmd: "$(location gen_riscv64_to_x86_64_intrinsics) $(out)",
+}'''
+new = '''genrule {
+    name: "libberberis_intrinsics_gen_inline_headers_riscv64_to_x86_64",
+    out: ["berberis/intrinsics/intrinsics.h"],
+    srcs: [],
+    // arm64-host: berberis dummy - tool asli (cc_binary_host) disabled di host
+    // arm64; output hanya dipakai pada host x86_64 (arch block consumer).
+    cmd: "mkdir -p $(dir $(out)) && echo '// arm64-host: dummy header (tool riscv64->x86_64 hanya x86_64 host)' > $(out)",
+}'''
+if old not in s:
+    print("  WARN: anchor genrule berberis tidak cocok"); sys.exit(1)
+s = s.replace(old, new, 1)
+open(p, "w", encoding="utf-8").write(s)
+print("  OK  : genrule berberis dimandirkan")
+PY
+  grep -q 'arm64-host: berberis dummy' "$BERBIS" 2>/dev/null || warn "verifikasi: genrule berberis belum dimandirkan"
+fi
+
 # ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
