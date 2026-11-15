@@ -966,7 +966,7 @@ fi
 #   (std musl yang dipasang workflow); keduanya punya srcs via PATCH 0018.
 #   Var lain (darwin/windows) tidak pernah diminta build ini.
 # =============================================================================
-step "0020" "prebuilts/rust/soong/rustprebuilts.go: module-level enabled"
+step "0020" "prebuilts/rust/soong/rustprebuilts.go: module-level enabled (DIPERTAHANKAN false - lihat catatan run #175)"
 RPRE="prebuilts/rust/soong/rustprebuilts.go"
 if [ -f "$RPRE" ]; then
   python3 - "$RPRE" <<'PY' || warn "gagal patch rustprebuilts.go enabled"
@@ -984,9 +984,12 @@ if not m:
     print("    WARN: anchor constructLibProps p.Enabled tak cocok"); sys.exit(1)
 t1 = m.group(1)
 new = (t1 + 'p := props{}\n'
-       + t1 + '// arm64-host: prebuilts rust std enabled di level modul; varian musl\n'
-       + t1 + '// arm64 tetap disabled walau target entry sudah didaftarkan (PATCH 0018).\n'
-       + m.group(2) + 'p.Enabled = proptools.BoolPtr(true)')
+       + t1 + '// arm64-host: module-level enabled DIPERTAHANKAN false.\n'
+       + t1 + '// JANGAN set true (pelajaran run #175): prebuilt_libstd jadi ter-export\n'
+       + t1 + '// ke legacy Make dan bentrok dengan modul source "libstd" ->\n'
+       + t1 + '// "MODULE.linux.RLIB_LIBRARIES.libstd already defined by prebuilts/rust".\n'
+       + t1 + '// Var musl arm64 di-enable lewat BP target (section 4.13 fix-source-tree).\n'
+       + m.group(2) + 'p.Enabled = proptools.BoolPtr(false)')
 s = s.replace(m.group(0), new, 1)
 open(p, "w", encoding="utf-8").write(s)
 print("    OK  : constructLibProps module-level enabled -> true")
