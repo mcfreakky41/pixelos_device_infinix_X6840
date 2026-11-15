@@ -249,7 +249,10 @@ jobs:
           set +e
           sudo swapoff /swapfile 2>/dev/null
           sudo rm -f /swapfile
-          sudo fallocate -l 6G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=6144
+          # 14G: analisis soong butuh >16GB (runner hanya 15.6GB RAM) -> OOM
+          # pada run #174 (exit 143 saat "analyzing Android.bp files").
+          # Disk free setelah sync+reclaim ~33G -> masih sisakan ~19G utk out/.
+          sudo fallocate -l 14G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=14336
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
