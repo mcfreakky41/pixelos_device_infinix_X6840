@@ -560,6 +560,12 @@ if anchor not in s:
     print("  WARN: anchor rust_stdlib_prebuilt_host tidak cocok"); sys.exit(1)
 if 'linux_musl_arm64' in s:
     print("  OK  : sudah ada"); sys.exit(0)
+# Path di BP relatif terhadap DIREKTORI MODUL (prebuilts/rust), bukan root
+# tree (pelajaran run #171: "prebuilts/rust/prebuilts/rust/..." does not exist).
+PREFIX = "prebuilts/rust/"
+def modrel(p):
+    return p[len(PREFIX):] if p.startswith(PREFIX) else p
+rlib_r, solib_r = modrel(rlib), modrel(solib)
 block = '''rust_stdlib_prebuilt_host {
     name: "libstd",
     crate_name: "std",
@@ -576,7 +582,7 @@ block = '''rust_stdlib_prebuilt_host {
             suffix: "%s",
         },
     },
-}''' % (rlib, solib, "/".join(rlib.split("/")[:-1]), suffix)
+}''' % (rlib_r, solib_r, "/".join(rlib_r.split("/")[:-1]), suffix)
 s = s.replace(anchor, block, 1)
 open(bp, "w", encoding="utf-8").write(s)
 print("  OK  : target linux_musl_arm64 ditambahkan ke " + bp)
