@@ -517,6 +517,75 @@ else
     ok "tidak ada referensi modul QEMU Trusty (sudah bersih)"
 fi
 
+
+# ============================================================
+# 4.13 prebuilts/rust/Android.bp: target linux_musl_arm64 utk modul libstd
+#      (pelajaran run #170)
+#
+#   Setelah module-level enabled=PATCH 0020, varian
+#   "prebuilt_libstd linux_musl_arm64_rlib" DIBUAT tapi srcs-nya KOSONG -
+#   per-target props dari hook Go (PATCH 0018) tidak ter-apply utk
+#   kombinasi target itu. Solusi: set properti yang SAMA langsung di
+#   Android.bp (target: { linux_musl_arm64: { rlib/srcs, dylib/srcs,
+#   link_dirs, enabled, force_use_prebuilt, suffix } }). File std musl
+#   arm64 dipasang oleh step "Setup Rust toolchain (arm64)".
+# ============================================================
+echo ">>> Set target linux_musl_arm64 untuk prebuilt libstd (BP)"
+RUSTBP="prebuilts/rust/Android.bp"
+if [ ! -f "$RUSTBP" ]; then
+  ok "tidak ada $RUSTBP (dilewati)"
+elif grep -q 'linux_musl_arm64' "$RUSTBP" 2>/dev/null; then
+  ok "target linux_musl_arm64 sudah ada di $RUSTBP"
+else
+  MUSL_LIBDIR="prebuilts/rust/linux-arm64/1.83.0/lib/rustlib/aarch64-unknown-linux-musl/lib"
+  if [ ! -d "$MUSL_LIBDIR" ]; then
+    warn "direktori std musl arm64 tidak ada: $MUSL_LIBDIR (step Rust toolchain gagal?)"
+  else
+    RLIB=$(ls "$MUSL_LIBDIR"/libstd-*.rlib 2>/dev/null | head -1)
+    SOLIB=$(ls "$MUSL_LIBDIR"/libstd-*.so 2>/dev/null | head -1)
+    if [ -z "$RLIB" ] || [ -z "$SOLIB" ]; then
+      warn "file libstd musl tidak ditemukan di $MUSL_LIBDIR"
+    else
+      SUFFIX=$(basename "$RLIB" .rlib); SUFFIX="${SUFFIX#libstd-}"
+      python3 - "$RUSTBP" "$RLIB" "$SOLIB" "$SUFFIX" <<'PY' || warn "gagal set target linux_musl_arm64 di Android.bp"
+import sys
+bp, rlib, solib, suffix = sys.argv[1:5]
+s = open(bp, encoding="utf-8").read()
+anchor = '''rust_stdlib_prebuilt_host {
+    name: "libstd",
+    crate_name: "std",
+    sysroot: true,
+}'''
+if anchor not in s:
+    print("  WARN: anchor rust_stdlib_prebuilt_host tidak cocok"); sys.exit(1)
+if 'linux_musl_arm64' in s:
+    print("  OK  : sudah ada"); sys.exit(0)
+block = '''rust_stdlib_prebuilt_host {
+    name: "libstd",
+    crate_name: "std",
+    sysroot: true,
+    target: {
+        linux_musl_arm64: {
+            // arm64-host: std musl arm64 - set langsung di BP karena per-target
+            // props dari hook Go tidak ter-apply (pelajaran run #170).
+            rlib: { srcs: ["%s"] },
+            dylib: { srcs: ["%s"] },
+            link_dirs: ["%s"],
+            enabled: true,
+            force_use_prebuilt: true,
+            suffix: "%s",
+        },
+    },
+}''' % (rlib, solib, "/".join(rlib.split("/")[:-1]), suffix)
+s = s.replace(anchor, block, 1)
+open(bp, "w", encoding="utf-8").write(s)
+print("  OK  : target linux_musl_arm64 ditambahkan ke " + bp)
+PY
+      grep -q 'linux_musl_arm64' "$RUSTBP" 2>/dev/null || warn "verifikasi: target linux_musl_arm64 tidak muncul di $RUSTBP"
+    fi
+  fi
+fi
+
 # ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
