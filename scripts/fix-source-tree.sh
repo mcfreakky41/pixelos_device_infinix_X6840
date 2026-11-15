@@ -630,7 +630,7 @@ new = '''genrule {
     srcs: [],
     // arm64-host: berberis dummy - tool asli (cc_binary_host) disabled di host
     // arm64; output hanya dipakai pada host x86_64 (arch block consumer).
-    cmd: "mkdir -p $(dir $(out)) && echo '// arm64-host: dummy header (tool riscv64->x86_64 hanya x86_64 host)' > $(out)",
+    cmd: "mkdir -p berberis/intrinsics && echo '// arm64-host: dummy header (tool riscv64->x86_64 hanya x86_64 host)' > $(out)",
 }'''
 if old not in s:
     print("  WARN: anchor genrule berberis tidak cocok"); sys.exit(1)
