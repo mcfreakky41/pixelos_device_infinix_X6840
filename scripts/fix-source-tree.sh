@@ -641,6 +641,49 @@ PY
   grep -q 'arm64-host: berberis dummy' "$BERBIS" 2>/dev/null || warn "verifikasi: genrule berberis belum dimandirkan"
 fi
 
+
+# ============================================================
+# 4.15 prebuilts/rust/Android.bp: source "libstd" tanpa host_supported
+#      (pelajaran run #175)
+#
+#   prebuilts/rust/Android.bp punya DUA modul bernama "libstd":
+#     1) rust_stdlib_prebuilt_host  -> "prebuilt_libstd" (prebuilt std host)
+#     2) rust_toolchain_library     -> "libstd"         (source sysroot)
+#   Saat PATCH 0020 men-set module-level enabled=true untuk (1), modul itu
+#   ter-export ke legacy Make dan BENTROK dengan (2):
+#     "MODULE.linux.RLIB_LIBRARIES.libstd already defined by prebuilts/rust"
+#   Host build memakai PREBUILT std (selalu: compiler.go -> "prebuilt_"+name),
+#   jadi varian host dari (2) redundan. Matikan host_supported-nya; varian
+#   device (target) TIDAK terpengaruh.
+# ============================================================
+echo ">>> Source libstd: matikan host_supported (Make collision)"
+RUSTBP="prebuilts/rust/Android.bp"
+if [ ! -f "$RUSTBP" ]; then
+  ok "tidak ada $RUSTBP (dilewati)"
+elif grep -q 'arm64-host: source libstd host_supported dimatikan' "$RUSTBP" 2>/dev/null; then
+  ok "source libstd host_supported sudah dimatikan"
+else
+  python3 - "$RUSTBP" <<'PY' || warn "gagal mematikan host_supported source libstd"
+import re, sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+
+# Cari blok rust_toolchain_library bernama "libstd"
+m = re.search(r'(rust_toolchain_library \{\n(\s+)name: "libstd",\n)', s)
+if not m:
+    print("  WARN: anchor rust_toolchain_library libstd tidak cocok"); sys.exit(1)
+indent = m.group(2)
+repl = (m.group(1)
+        + indent + '// arm64-host: source libstd host_supported dimatikan (varian host pakai\n'
+        + indent + '// prebuilt_libstd; pelajaran run #175: collision MODULE.linux.RLIB_LIBRARIES.libstd).\n'
+        + indent + 'host_supported: false,\n')
+s = s.replace(m.group(0), repl, 1)
+open(p, "w", encoding="utf-8").write(s)
+print("  OK  : host_supported: false ditambahkan ke source libstd")
+PY
+  grep -q 'arm64-host: source libstd host_supported dimatikan' "$RUSTBP" 2>/dev/null || warn "verifikasi: host_supported: false tidak muncul di $RUSTBP"
+fi
+
 # ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
