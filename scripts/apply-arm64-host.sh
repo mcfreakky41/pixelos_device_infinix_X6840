@@ -978,14 +978,16 @@ MARK = "arm64-host: prebuilts rust std enabled di level modul"
 if MARK in s:
     print("    SKIP: sudah dipatch"); sys.exit(0)
 
-old = "\tp := props{}\n\tp.Enabled = proptools.BoolPtr(false)"
-new = ("\tp := props{}\n"
-       "\t// arm64-host: prebuilts rust std enabled di level modul; varian musl\n"
-       "\t// arm64 tetap disabled walau target entry sudah didaftarkan (PATCH 0018).\n"
-       "\tp.Enabled = proptools.BoolPtr(true)")
-if old not in s:
+import re as RE
+m = RE.search(r'(\t+)p := props\{\}\n(\t+)p\.Enabled = proptools\.BoolPtr\(false\)', s)
+if not m:
     print("    WARN: anchor constructLibProps p.Enabled tak cocok"); sys.exit(1)
-s = s.replace(old, new, 1)
+t1 = m.group(1)
+new = (t1 + 'p := props{}\n'
+       + t1 + '// arm64-host: prebuilts rust std enabled di level modul; varian musl\n'
+       + t1 + '// arm64 tetap disabled walau target entry sudah didaftarkan (PATCH 0018).\n'
+       + m.group(2) + 'p.Enabled = proptools.BoolPtr(true)')
+s = s.replace(m.group(0), new, 1)
 open(p, "w", encoding="utf-8").write(s)
 print("    OK  : constructLibProps module-level enabled -> true")
 PY
