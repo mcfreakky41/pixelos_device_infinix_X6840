@@ -899,6 +899,55 @@ else
 fi
 
 # =============================================================================
+# PATCH 0019 - prebuilts/rust/soong/rustprebuilts.go: variant host untuk prebuilt std
+#
+#   Source check (AOSP android-16.0.0_r1, rustprebuilts.go:141):
+#     func rustHostPrebuiltSysrootLibraryFactory() android.Module {
+#     	module, _ := rust.NewPrebuiltLibrary(android.HostSupportedNoCross)
+#
+#   "HostSupportedNoCross" = modul cuma punya variant utk host SAAT INI
+#   (glibc arm64 di build kita). Tapi soong tetap membangitkan variant host
+#   "linux_musl_arm64" utk host_supported module (PixelOS meregistrasi
+#   linuxMuslArm64ToolchainFactory di rust/config/arm_linux_host.go:31) ->
+#   ratusan crate me-resolve "prebuilt_libstd" utk variant itu, sementara
+#   variant itu TIDAK PERNAH dibuat -> "depends on disabled module".
+#   (Pelajaran run #163/#165/#167: registrasi target props SENDIRI tidak
+#   cukup karena tak ada variant untuk menerima props tsb.)
+#
+#   Fix: HostSupported (host-only, semua host target) -> variant
+#   linux_musl_arm64 dibuat -> props dari PATCH 0018 berlaku.
+# =============================================================================
+step "0019" "prebuilts/rust/soong/rustprebuilts.go: HostSupported (varian host lengkap)"
+RPRE="prebuilts/rust/soong/rustprebuilts.go"
+if [ -f "$RPRE" ]; then
+  python3 - "$RPRE" <<'PY' || warn "gagal patch rustprebuilts.go HostSupported"
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+
+MARK = "arm64-host: prebuilts rust std host support semua host target (musl arm64)"
+if MARK in s:
+    print("    SKIP: sudah dipatch"); sys.exit(0)
+
+old = 'module, _ := rust.NewPrebuiltLibrary(android.HostSupportedNoCross)'
+new = ('// arm64-host: prebuilts rust std host support semua host target (musl arm64).\n'
+       '\tmodule, _ := rust.NewPrebuiltLibrary(android.HostSupported)')
+if old not in s:
+    print("    WARN: anchor NewPrebuiltLibrary tak cocok"); sys.exit(1)
+s = s.replace(old, new, 1)
+open(p, "w", encoding="utf-8").write(s)
+print("    OK  : rustHostPrebuiltSysrootLibraryFactory kini HostSupported")
+PY
+else
+  warn "$RPRE tidak ada"
+fi
+if grep -q "prebuilts rust std host support semua host target" "$RPRE" 2>/dev/null; then
+  ok "0019 rustprebuilts HostSupported"
+else
+  warn "verifikasi GAGAL: 0019 rustprebuilts HostSupported"
+fi
+
+# =============================================================================
 # VERIFIKASI AKHIR (fail-closed)
 # -----------------------------------------------------------------------------
 # Skrip ini mengubah banyak bagian build system. Kalau satu patch wajib gagal
