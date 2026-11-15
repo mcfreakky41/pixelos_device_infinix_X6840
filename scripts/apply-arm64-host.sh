@@ -966,7 +966,7 @@ fi
 #   (std musl yang dipasang workflow); keduanya punya srcs via PATCH 0018.
 #   Var lain (darwin/windows) tidak pernah diminta build ini.
 # =============================================================================
-step "0020" "prebuilts/rust/soong/rustprebuilts.go: module-level enabled (DIPERTAHANKAN false - lihat catatan run #175)"
+step "0020" "prebuilts/rust/soong/rustprebuilts.go: module-level enabled=true (WAJIB - run #177/#178 mandek jika false)"
 RPRE="prebuilts/rust/soong/rustprebuilts.go"
 if [ -f "$RPRE" ]; then
   python3 - "$RPRE" <<'PY' || warn "gagal patch rustprebuilts.go enabled"
@@ -984,12 +984,12 @@ if not m:
     print("    WARN: anchor constructLibProps p.Enabled tak cocok"); sys.exit(1)
 t1 = m.group(1)
 new = (t1 + 'p := props{}\n'
-       + t1 + '// arm64-host: module-level enabled DIPERTAHANKAN false.\n'
-       + t1 + '// JANGAN set true (pelajaran run #175): prebuilt_libstd jadi ter-export\n'
-       + t1 + '// ke legacy Make dan bentrok dengan modul source "libstd" ->\n'
-       + t1 + '// "MODULE.linux.RLIB_LIBRARIES.libstd already defined by prebuilts/rust".\n'
-       + t1 + '// Var musl arm64 di-enable lewat BP target (section 4.13 fix-source-tree).\n'
-       + m.group(2) + 'p.Enabled = proptools.BoolPtr(false)')
+       + t1 + '// arm64-host: module-level enabled=true WAJIB.\n'
+       + t1 + '// Dengan false, analisis soong MANDEEK >25 menit (run #177/#178,\n'
+       + t1 + '// exit 143, tanpa progres) - host module yang tak resolve varian sysroot.\n'
+       + t1 + '// Dengan true, source libstd HOST dimatikan (PATCH 0021) supaya tidak\n'
+       + t1 + '// bentrok di Make (pelajaran run #175).\n'
+       + m.group(2) + 'p.Enabled = proptools.BoolPtr(true)')
 s = s.replace(m.group(0), new, 1)
 open(p, "w", encoding="utf-8").write(s)
 print("    OK  : constructLibProps module-level enabled -> true")
@@ -997,8 +997,8 @@ PY
 else
   warn "$RPRE tidak ada"
 fi
-if grep -q "arm64-host: module-level enabled DIPERTAHANKAN false" "$RPRE" 2>/dev/null; then
-  ok "0020 rustprebuilts module-level enabled=false (sesuai desain AOSP)"
+if grep -q "arm64-host: module-level enabled=true WAJIB" "$RPRE" 2>/dev/null; then
+  ok "0020 rustprebuilts module-level enabled=true"
 else
   warn "verifikasi GAGAL: 0020 rustprebuilts module-level enabled"
 fi
