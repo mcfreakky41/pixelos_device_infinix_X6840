@@ -997,8 +997,8 @@ PY
 else
   warn "$RPRE tidak ada"
 fi
-if grep -q "prebuilts rust std enabled di level modul" "$RPRE" 2>/dev/null; then
-  ok "0020 rustprebuilts module-level enabled"
+if grep -q "arm64-host: module-level enabled DIPERTAHANKAN false" "$RPRE" 2>/dev/null; then
+  ok "0020 rustprebuilts module-level enabled=false (sesuai desain AOSP)"
 else
   warn "verifikasi GAGAL: 0020 rustprebuilts module-level enabled"
 fi
