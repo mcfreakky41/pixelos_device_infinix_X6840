@@ -948,6 +948,57 @@ else
 fi
 
 # =============================================================================
+# PATCH 0020 - prebuilts/rust/soong/rustprebuilts.go: module-level enabled
+#
+#   KONTEKS (pelajaran run #163-#168):
+#     prebuilts/rust/Android.bp punya DUA modul bernama "libstd":
+#       1) rust_stdlib_prebuilt_host  -> jadi "prebuilt_libstd"
+#       2) rust_toolchain_library     -> "libstd" (source sysroot)
+#     Ratusan crate (host_supported) me-resolve sysroot ke "prebuilt_libstd"
+#     utk variant host SAAT INI + varian musl arch yang sama (di-generate
+#     mutagen). Module-level enabled=false (constructLibProps) + per-target
+#     enabled=true; registrasi target musl arm64 (PATCH 0018) sudah benar
+#     TAPI varian tetap "disabled" — kemungkinan per-target props tidak
+#     ter-apply untuk kombinasi itu di kondisi build ini.
+#
+#   FIX LANGSUNG: naikkan module-level enabled -> true. Di build ini hanya
+#   ada varian glibc_arm64 (punya prebuilt di linux-arm64) + musl_arm64
+#   (std musl yang dipasang workflow); keduanya punya srcs via PATCH 0018.
+#   Var lain (darwin/windows) tidak pernah diminta build ini.
+# =============================================================================
+step "0020" "prebuilts/rust/soong/rustprebuilts.go: module-level enabled"
+RPRE="prebuilts/rust/soong/rustprebuilts.go"
+if [ -f "$RPRE" ]; then
+  python3 - "$RPRE" <<'PY' || warn "gagal patch rustprebuilts.go enabled"
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+
+MARK = "arm64-host: prebuilts rust std enabled di level modul"
+if MARK in s:
+    print("    SKIP: sudah dipatch"); sys.exit(0)
+
+old = "\tp := props{}\n\tp.Enabled = proptools.BoolPtr(false)"
+new = ("\tp := props{}\n"
+       "\t// arm64-host: prebuilts rust std enabled di level modul; varian musl\n"
+       "\t// arm64 tetap disabled walau target entry sudah didaftarkan (PATCH 0018).\n"
+       "\tp.Enabled = proptools.BoolPtr(true)")
+if old not in s:
+    print("    WARN: anchor constructLibProps p.Enabled tak cocok"); sys.exit(1)
+s = s.replace(old, new, 1)
+open(p, "w", encoding="utf-8").write(s)
+print("    OK  : constructLibProps module-level enabled -> true")
+PY
+else
+  warn "$RPRE tidak ada"
+fi
+if grep -q "prebuilts rust std enabled di level modul" "$RPRE" 2>/dev/null; then
+  ok "0020 rustprebuilts module-level enabled"
+else
+  warn "verifikasi GAGAL: 0020 rustprebuilts module-level enabled"
+fi
+
+# =============================================================================
 # VERIFIKASI AKHIR (fail-closed)
 # -----------------------------------------------------------------------------
 # Skrip ini mengubah banyak bagian build system. Kalau satu patch wajib gagal
