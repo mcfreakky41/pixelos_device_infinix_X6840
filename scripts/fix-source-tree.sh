@@ -643,54 +643,77 @@ fi
 
 
 # ============================================================
-# 4.15 prebuilts/rust/Android.bp: source "libstd" hide_from_make
-#      (pelajaran run #175)
+# 4.15 Rust std: cegah collision Make "MODULE.linux.RLIB_LIBRARIES.libstd"
+#      (pelajaran run #175, #180)
 #
-#   prebuilts/rust/Android.bp punya DUA modul bernama "libstd":
+#   Dua modul "libstd" ter-export ke legacy Make host saat prebuilt enabled:
 #     1) rust_stdlib_prebuilt_host  -> "prebuilt_libstd" (prebuilt std host)
 #     2) rust_toolchain_library     -> "libstd"         (source sysroot)
-#   Saat PATCH 0020 men-set module-level enabled=true untuk (1), keduanya
-#   ter-export ke legacy Make di host dan BENTROK:
-#     "MODULE.linux.RLIB_LIBRARIES.libstd already defined by prebuilts/rust"
-#   (module_id = MODULE.<OS>.<CLASS>.<LOCAL_MODULE> - dua-duanya "libstd")
+#   => "MODULE.linux.RLIB_LIBRARIES.libstd already defined by prebuilts/rust"
 #
-#   host_supported TIDAK cukup: factory rust_toolchain_library
-#   (toolchain_library.go) memaksa HostAndDeviceSupported, jadi varian host
-#   source libstd tetap dibuat. Host build pakai prebuilt std (compiler.go:
-#   "prebuilt_"+name), varian host source-nya redundan.
+#   Salah pendekatan sebelumnya:
+#   - host_supported:false TIDAK cukup (factory paksa HostAndDeviceSupported)
+#   - hide_from_make:true TIDAK dikenali sebagai BP property di modul rust ini
+#     (run #180: "unrecognized property \"hide_from_make\"")
 #
-#   Fix: hide_from_make: true (property blueprint resmi soong; module.go)
-#   -> varian tidak di-export ke Android.mk, collision hilang.
-#   Varian device (target) TIDAK terpengaruh.
+#   Fix benar: patch build/soong/rust/toolchain_library.go agar toolchain
+#   library tidak "ever installable" -> rust.go (auto-hide uninstallable non-
+#   proc-macro, ~line 1129) memanggil HideFromMake() otomatis. Varian device
+#   tetap di-build (hanya disembunyikan dari export Android.mk/Make).
 # ============================================================
-echo ">>> Source libstd: hide_from_make (Make collision)"
+echo ">>> Rust std: patch toolchain_library agar hide from make"
+
+# Bersihkan sisa hide_from_make yang keliru di Android.bp (run #180)
 RUSTBP="prebuilts/rust/Android.bp"
-if [ ! -f "$RUSTBP" ]; then
-  ok "tidak ada $RUSTBP (dilewati)"
-elif grep -q 'arm64-host: source libstd hide_from_make' "$RUSTBP" 2>/dev/null; then
-  ok "source libstd sudah hide_from_make"
-else
-  python3 - "$RUSTBP" <<'PY' || warn "gagal menambahkan hide_from_make"
+if [ -f "$RUSTBP" ]; then
+  python3 - "$RUSTBP" <<'PY' || true
 import re, sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
-
-# hapus sisa patch lama jika ada (host_supported dimatikan)
+orig = s
+s = re.sub(r"\s+// arm64-host: source libstd hide_from_make.*?\n\s+hide_from_make: true,\n", "\n", s, count=1, flags=re.S)
 s = re.sub(r"\s+// arm64-host: source libstd host_supported dimatikan.*?\n\s+host_supported: false,\n", "\n", s, count=1, flags=re.S)
-
-m = re.search(r'(rust_toolchain_library \{\n(\s+)name: "libstd",\n)', s)
-if not m:
-    print("  WARN: anchor rust_toolchain_library libstd tidak cocok"); sys.exit(1)
-indent = m.group(2)
-repl = (m.group(1)
-        + indent + '// arm64-host: source libstd hide_from_make (varian host pakai prebuilt\n'
-        + indent + '// libstd; pelajaran run #175: collision MODULE.linux.RLIB_LIBRARIES.libstd).\n'
-        + indent + 'hide_from_make: true,\n')
-s = s.replace(m.group(0), repl, 1)
-open(p, "w", encoding="utf-8").write(s)
-print("  OK  : hide_from_make: true ditambahkan ke source libstd")
+if s != orig:
+    open(p, "w", encoding="utf-8").write(s)
+    print("  OK  : hapus property BP keliru (hide_from_make/host_supported) dari source libstd")
+else:
+    print("  OK  : tidak ada property BP keliru di source libstd")
 PY
-  grep -q 'arm64-host: source libstd hide_from_make' "$RUSTBP" 2>/dev/null || warn "verifikasi: hide_from_make tidak muncul di $RUSTBP"
+fi
+
+TLIB="build/soong/rust/toolchain_library.go"
+if [ ! -f "$TLIB" ]; then
+  ok "tidak ada $TLIB (dilewati)"
+elif grep -q 'arm64-host: toolchain lib hide from make' "$TLIB" 2>/dev/null; then
+  ok "toolchain_library sudah dipatch (hide from make)"
+else
+  python3 - "$TLIB" <<'PY' || warn "gagal patch toolchain_library.go"
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+marker = 'arm64-host: toolchain lib hide from make'
+if marker in s:
+    print("  OK  : sudah ada"); sys.exit(0)
+# Tambah method everInstallable() -> false agar rust.go auto-HideFromMake.
+# Tempatkan sebelum akhir file (setelah func terakhir) atau sebelum GetRustPrebuiltVersion.
+anchor = '\n// GetRustPrebuiltVersion returns'
+inject = (
+    '\n// everInstallable returns false so rust toolchain library modules are hidden\n'
+    '// from the legacy Make export (arm64-host: toolchain lib hide from make).\n'
+    '// This avoids "MODULE.linux.RLIB_LIBRARIES.libstd already defined" when the\n'
+    '// prebuilt stdlib is enabled alongside the source toolchain sysroot library.\n'
+    'func (library *toolchainLibraryDecorator) everInstallable() bool {\n'
+    '\treturn false\n'
+    '}\n'
+)
+if anchor in s:
+    s = s.replace(anchor, inject + anchor, 1)
+else:
+    s += inject
+open(p, "w", encoding="utf-8").write(s)
+print("  OK  : everInstallable()=false ditambahkan ke toolchainLibraryDecorator")
+PY
+  grep -q 'arm64-host: toolchain lib hide from make' "$TLIB" 2>/dev/null || warn "verifikasi: patch toolchain_library.go tidak ditemukan"
 fi
 
 
