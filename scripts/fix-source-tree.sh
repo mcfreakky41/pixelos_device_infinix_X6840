@@ -643,18 +643,60 @@ fi
 
 
 # ============================================================
-# 4.15 prebuilts/rust/Android.bp: source "libstd" tanpa host_supported
+# 4.15 prebuilts/rust/Android.bp: source "libstd" hide_from_make
 #      (pelajaran run #175)
 #
 #   prebuilts/rust/Android.bp punya DUA modul bernama "libstd":
 #     1) rust_stdlib_prebuilt_host  -> "prebuilt_libstd" (prebuilt std host)
 #     2) rust_toolchain_library     -> "libstd"         (source sysroot)
-#   Saat PATCH 0020 men-set module-level enabled=true untuk (1), modul itu
-#   ter-export ke legacy Make dan BENTROK dengan (2):
+#   Saat PATCH 0020 men-set module-level enabled=true untuk (1), keduanya
+#   ter-export ke legacy Make di host dan BENTROK:
 #     "MODULE.linux.RLIB_LIBRARIES.libstd already defined by prebuilts/rust"
-#   Host build memakai PREBUILT std (selalu: compiler.go -> "prebuilt_"+name),
-#   jadi varian host dari (2) redundan. Matikan host_supported-nya; varian
-#   device (target) TIDAK terpengaruh.
+#   (module_id = MODULE.<OS>.<CLASS>.<LOCAL_MODULE> - dua-duanya "libstd")
+#
+#   Catatan penting: host_supported TIDAK menyelesaikan ini — factory
+#   rust_toolchain_library (toolchain_library.go:57) memaksa
+#   HostAndDeviceSupported, jadi varian host source libstd tetap dibuat.
+#   Sementara host build memang pakai prebuilt std (compiler.go:541
+#   "prebuilt_"+name), varian host source-nya redundan.
+#
+#   Fix yang benar: hide_from_make (property blueprint resmi soong;
+#   module.go:485) -> varian tak di-export ke Android.mk, collision hilang.
+#   Varian device (target) TIDAK terpengaruh.
+# ============================================================
+echo ">>> Source libstd: hide_from_make (Make collision)"
+RUSTBP="prebuilts/rust/Android.bp"
+if [ ! -f "$RUSTBP" ]; then
+  ok "tidak ada $RUSTBP (dilewati)"
+elif grep -q 'arm64-host: source libstd hide_from_make' "$RUSTBP" 2>/dev/null; then
+  ok "source libstd sudah hide_from_make"
+else
+  python3 - "$RUSTBP" <<'PY' || warn "gagal menambahkan hide_from_make"
+import re, sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+
+# Blok rust_toolchain_library bernama "libstd" (target libstd toolchain sysroot)
+m = re.search(r'(rust_toolchain_library \{
+(\s+)name: "libstd",
+)', s)
+if not m:
+    print("  WARN: anchor rust_toolchain_library libstd tidak cocok"); sys.exit(1)
+indent = m.group(2)
+repl = (m.group(1)
+        + indent + '// arm64-host: source libstd hide_from_make (varian host pakai prebuilt\n'
+        + indent + '//_libstd; pelajaran run #175: collision MODULE.linux.RLIB_LIBRARIES.libstd).
+'
+        + indent + 'hide_from_make: true,
+')
+s = s.replace(m.group(0), repl, 1)
+open(p, "w", encoding="utf-8").write(s)
+print("  OK  : hide_from_make: true ditambahkan ke source libstd")
+PY
+  grep -q 'arm64-host: source libstd hide_from_make' "$RUSTBP" 2>/dev/null || warn "verifikasi: hide_from_make tidak muncul di $RUSTBP"
+fi
+
+
 # ============================================================
 echo ">>> Source libstd: matikan host_supported (Make collision)"
 RUSTBP="prebuilts/rust/Android.bp"
