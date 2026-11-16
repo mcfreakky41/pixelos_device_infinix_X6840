@@ -654,14 +654,13 @@ fi
 #     "MODULE.linux.RLIB_LIBRARIES.libstd already defined by prebuilts/rust"
 #   (module_id = MODULE.<OS>.<CLASS>.<LOCAL_MODULE> - dua-duanya "libstd")
 #
-#   Catatan penting: host_supported TIDAK menyelesaikan ini — factory
-#   rust_toolchain_library (toolchain_library.go:57) memaksa
-#   HostAndDeviceSupported, jadi varian host source libstd tetap dibuat.
-#   Sementara host build memang pakai prebuilt std (compiler.go:541
+#   host_supported TIDAK cukup: factory rust_toolchain_library
+#   (toolchain_library.go) memaksa HostAndDeviceSupported, jadi varian host
+#   source libstd tetap dibuat. Host build pakai prebuilt std (compiler.go:
 #   "prebuilt_"+name), varian host source-nya redundan.
 #
-#   Fix yang benar: hide_from_make (property blueprint resmi soong;
-#   module.go:485) -> varian tak di-export ke Android.mk, collision hilang.
+#   Fix: hide_from_make: true (property blueprint resmi soong; module.go)
+#   -> varian tidak di-export ke Android.mk, collision hilang.
 #   Varian device (target) TIDAK terpengaruh.
 # ============================================================
 echo ">>> Source libstd: hide_from_make (Make collision)"
@@ -676,19 +675,17 @@ import re, sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
 
-# Blok rust_toolchain_library bernama "libstd" (target libstd toolchain sysroot)
-m = re.search(r'(rust_toolchain_library \{
-(\s+)name: "libstd",
-)', s)
+# hapus sisa patch lama jika ada (host_supported dimatikan)
+s = re.sub(r"\s+// arm64-host: source libstd host_supported dimatikan.*?\n\s+host_supported: false,\n", "\n", s, count=1, flags=re.S)
+
+m = re.search(r'(rust_toolchain_library \{\n(\s+)name: "libstd",\n)', s)
 if not m:
     print("  WARN: anchor rust_toolchain_library libstd tidak cocok"); sys.exit(1)
 indent = m.group(2)
 repl = (m.group(1)
         + indent + '// arm64-host: source libstd hide_from_make (varian host pakai prebuilt\n'
-        + indent + '//_libstd; pelajaran run #175: collision MODULE.linux.RLIB_LIBRARIES.libstd).
-'
-        + indent + 'hide_from_make: true,
-')
+        + indent + '// libstd; pelajaran run #175: collision MODULE.linux.RLIB_LIBRARIES.libstd).\n'
+        + indent + 'hide_from_make: true,\n')
 s = s.replace(m.group(0), repl, 1)
 open(p, "w", encoding="utf-8").write(s)
 print("  OK  : hide_from_make: true ditambahkan ke source libstd")
