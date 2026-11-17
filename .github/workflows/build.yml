@@ -663,6 +663,11 @@ jobs:
           # system/system_ext/product/vbmeta (super.img TIDAK dipakai).
           # Nama target diverifikasi ada di build/make/core/main.mk.
           # ------------------------------------------------------------
+          # Overlay APK prebuilt (NetworkStackGoogleGoResOverlay, dll) ada di
+          # PRODUCT_COPY_FILES (X6840-vendor.mk) tanpa BUILD_PREBUILT. build/make/core/Makefile:103
+          # error "Prebuilt apk found in PRODUCT_COPY_FILES" (run #186). BUILD_BROKEN_VINTF_*
+          # melewati check-product-copy-files (termasuk prebuilt apk) — aman untuk image-only.
+          export BUILD_BROKEN_VINTF_PRODUCT_COPY_FILES=true
           TARGETS="systemimage systemextimage productimage vbmetaimage"
           echo "=== MULAI BUILD: $TARGETS ($(date -u)) ==="
           set -o pipefail
