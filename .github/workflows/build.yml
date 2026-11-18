@@ -247,20 +247,44 @@ jobs:
       # Runner ubuntu-24.04-arm punya ~16 GB RAM. Soong bootstrap/analisis
       # bisa memicu lonjakan RAM/OOM yang pada GitHub-hosted runner
       # terlihat sebagai shutdown signal + exit 143 (bukan error Soong).
-      # 10 GB swap memberi ruang memori tambahan sambil menyisakan cukup
-      # disk untuk pertumbuhan awal out/ di runner yang sempit.
+      # Ukuran swap dihitung adaptif dari disk yang tersedia pasca-reclaim
+      # agar tetap menyisakan headroom untuk pertumbuhan out/ sambil memberi
+      # ruang memori tambahan saat lonjakan.
       # ============================================================
       - name: Enable swap (after sync)
         run: |
           set +e
           sudo swapoff /swapfile 2>/dev/null || true
           sudo rm -f /swapfile
-          SWAP_GB=10
-          echo ">>> Membuat swap ${SWAP_GB}G (RAM terbatas, jaga headroom disk)"
+
+          AVAIL_GB=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
+          HEADROOM_GB=20   # sisakan ruang untuk pertumbuhan out/
+          MIN_SWAP_GB=4
+          MAX_SWAP_GB=10
+
+          SWAP_GB=$((AVAIL_GB - HEADROOM_GB))
+          if [ "$SWAP_GB" -gt "$MAX_SWAP_GB" ]; then SWAP_GB=$MAX_SWAP_GB; fi
+          if [ "$SWAP_GB" -lt "$MIN_SWAP_GB" ]; then SWAP_GB=$MIN_SWAP_GB; fi
+
+          # Pastikan masih ada headroom disk minimal setelah swap dibuat.
+          MIN_REMAIN_GB=8
+          if [ "$AVAIL_GB" -le $((SWAP_GB + MIN_REMAIN_GB)) ]; then
+            SWAP_GB=$((AVAIL_GB - MIN_REMAIN_GB))
+            if [ "$SWAP_GB" -lt 2 ]; then SWAP_GB=2; fi
+            echo ">>> Disk sempit: swap disesuaikan menjadi ${SWAP_GB}G"
+          fi
+
+          echo ">>> Disk tersedia: ${AVAIL_GB}G, swap adaptif: ${SWAP_GB}G (target headroom ${HEADROOM_GB}G)"
           sudo fallocate -l ${SWAP_GB}G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=$((SWAP_GB*1024))
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          if [ $? -ne 0 ]; then
+            echo "!! Gagal membuat swapfile ${SWAP_GB}G, coba fallback 4G"
+            sudo rm -f /swapfile
+            SWAP_GB=4
+            sudo fallocate -l ${SWAP_GB}G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=$((SWAP_GB*1024)) || true
+          fi
+          sudo chmod 600 /swapfile 2>/dev/null || true
+          sudo mkswap /swapfile 2>/dev/null || true
+          sudo swapon /swapfile 2>/dev/null || true
           # Dorong penggunaan swap lebih awal agar lonjakan Soong tidak
           # langsung memicu OOM killer / runner shutdown.
           sudo sysctl -w vm.swappiness=80 || true
@@ -659,9 +683,9 @@ jobs:
 
           # Runner ubuntu-24.04-arm: ~4 vCPU / ~16 GB RAM. Paralelisme tinggi
           # menaikkan risiko lonjakan RAM saat Soong bootstrap/analisis dan
-          # dapat memicu runner shutdown (exit 143). Gunakan -j2 + swap agar
-          # lebih stabil pada GitHub-hosted runner gratis.
-          JOBS=2
+          # dapat memicu runner shutdown (exit 143). Gunakan -j1 + swap adaptif
+          # untuk stabilitas maksimum pada GitHub-hosted runner gratis.
+          JOBS=1
           echo "Memakai -j$JOBS (nproc=$(nproc --all))"
 
           echo "=== LUNCH: $(date -u) ==="
