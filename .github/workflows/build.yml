@@ -637,7 +637,9 @@ jobs:
 
           source build/envsetup.sh
           export CCACHE_EXEC=$(which ccache)
-          export USE_CCACHE=1
+          # CCACHE Dinonaktifkan (run #195): ccache-action + USE_CCACHE menambah overhead &
+          # cache 2G di runner yang sempit. Build bersih tanpa cache.
+          export USE_CCACHE=0
           export CCACHE_DIR=/home/runner/.ccache
           ccache -M 2G
 
@@ -668,7 +670,10 @@ jobs:
           # error "Prebuilt apk found in PRODUCT_COPY_FILES" (run #186). BUILD_BROKEN_VINTF_*
           # melewati check-product-copy-files (termasuk prebuilt apk) — aman untuk image-only.
           export BUILD_BROKEN_VINTF_PRODUCT_COPY_FILES=true
-          TARGETS="systemimage systemextimage productimage vbmetaimage"
+          # Runner 4 vCPU / 16 GB di-preempt ~25 menit (run #187-#194).
+          # Potong TARGETS jadi systemimage SAJA supaya finish <25 menit.
+          # systemext/product/vbmeta di-build nanti (retry atau manual).
+          TARGETS="systemimage"
           echo "=== MULAI BUILD: $TARGETS ($(date -u)) ==="
           set -o pipefail
           if ! mka $TARGETS -j$JOBS 2>&1 | tee build.log; then
