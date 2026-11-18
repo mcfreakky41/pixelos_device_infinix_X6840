@@ -555,13 +555,14 @@ for f in $SEP_FILES; do
 done
 
 # =============================================================================
-# PATCH 0014 — build/soong/scripts/jar-wrapper.sh: default -Xmx8g utk tool host
+# PATCH 0014 — build/soong/scripts/jar-wrapper.sh: default -Xmx3g utk tool host
 #   metalava OOM pada host arm64 (heap JVM default). -J-Xmx... dari tool tetap menang.
+#   3g dipilih agar aman di runner 16 GB + swap (8g berisiko OOM kill saat build).
 # =============================================================================
-step "0014" "soong/scripts/jar-wrapper.sh: default -Xmx8g utk java_binary_host"
+step "0014" "soong/scripts/jar-wrapper.sh: default -Xmx3g utk java_binary_host"
 JW="build/soong/scripts/jar-wrapper.sh"
 if [ -f "$JW" ]; then
-  if grep -qF 'exec java -Xmx8g' "$JW"; then
+  if grep -qF 'exec java -Xmx3g' "$JW" || grep -qF 'exec java -Xmx8g' "$JW"; then
     skip "sudah dipatch: $JW"
   elif grep -qF 'exec java "${javaOpts[@]}" -jar ${jardir}/${jarfile} "$@"' "$JW"; then
     python3 - "$JW" <<'PY' || warn "gagal patch jar-wrapper.sh"
@@ -571,7 +572,7 @@ s = open(p, encoding="utf-8").read()
 old = 'exec java "${javaOpts[@]}" -jar ${jardir}/${jarfile} "$@"'
 new = ('# arm64-host (#28): default max-heap supaya tool hemat (metalava) tidak OOM;\n'
        '# -J-Xmx... dari tool ditambahkan setelahnya dan menimpa (JVM pakai -Xmx terakhir).\n'
-       'exec java -Xmx8g "${javaOpts[@]}" -jar ${jardir}/${jarfile} "$@"')
+       'exec java -Xmx3g "${javaOpts[@]}" -jar ${jardir}/${jarfile} "$@"')
 s = s.replace(old, new, 1)
 open(p, "w", encoding="utf-8").write(s)
 print("    OK  : jar-wrapper.sh dipatch")
@@ -1036,7 +1037,7 @@ require_marker "0004 build-tools linux-arm64"           prebuilts/build-tools/An
 require_marker "0002b clang/config.mk arm64"            build/make/core/clang/config.mk "LLVM_HOST_PREBUILT_ARCH := arm64"
 require_marker "0005 jdk21 javap arm64"                 prebuilts/jdk/jdk21/Android.bp "linux_musl_arm64"
 require_marker "0012 sepolicy getopt int"               system/sepolicy/tools/checkfc.c "int c;"
-require_marker "0014 jar-wrapper -Xmx8g"                build/soong/scripts/jar-wrapper.sh "exec java -Xmx8g"
+require_marker "0014 jar-wrapper -Xmx3g"                build/soong/scripts/jar-wrapper.sh "exec java -Xmx3g"
 require_marker "0015 arch.go Linux + Arm64"             build/soong/android/arch.go "arm64-host: host aarch64 juga butuh varian linux_glibc_arm64"
 require_marker "0016 rust glibc arm64 toolchain"        build/soong/rust/config/arm_linux_host.go "linuxGlibcArm64ToolchainFactory"
 require_marker "0017 rustprebuilts arm64"               prebuilts/rust/soong/rustprebuilts.go "arm64-host: prebuilt std Rust untuk host aarch64"
