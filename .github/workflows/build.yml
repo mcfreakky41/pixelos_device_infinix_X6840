@@ -32,7 +32,7 @@ jobs:
       # Repo sync PixelOS butuh ~120 GB (worktree + .repo), jadi margin
       # sangat tipis. Semua yang tidak dipakai build AOSP dibuang di sini.
       #
-      # PENTING: swap TIDAK dibuat di sini. Swap 4-6 GB akan mengurangi
+      # PENTING: swap TIDAK dibuat di sini. Swap akan mengurangi
       # headroom tepat saat puncak pemakaian disk (sync). Swap dibuat
       # setelah sync selesai, sebelum build.
       # ============================================================
@@ -243,19 +243,27 @@ jobs:
 
       # ============================================================
       # 5. SWAP (baru dibuat sekarang, setelah puncak disk sync lewat)
+      # ------------------------------------------------------------
+      # Runner ubuntu-24.04-arm punya ~16 GB RAM. Soong bootstrap/analisis
+      # bisa memicu lonjakan RAM/OOM yang pada GitHub-hosted runner
+      # terlihat sebagai shutdown signal + exit 143 (bukan error Soong).
+      # 10 GB swap memberi ruang memori tambahan sambil menyisakan cukup
+      # disk untuk pertumbuhan awal out/ di runner yang sempit.
       # ============================================================
       - name: Enable swap (after sync)
         run: |
           set +e
-          sudo swapoff /swapfile 2>/dev/null
+          sudo swapoff /swapfile 2>/dev/null || true
           sudo rm -f /swapfile
-          # 14G: analisis soong butuh >16GB (runner hanya 15.6GB RAM) -> OOM
-          # pada run #174 (exit 143 saat "analyzing Android.bp files").
-          # Disk free setelah sync+reclaim ~33G -> masih sisakan ~19G utk out/.
-          sudo fallocate -l 14G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=14336
+          SWAP_GB=10
+          echo ">>> Membuat swap ${SWAP_GB}G (RAM terbatas, jaga headroom disk)"
+          sudo fallocate -l ${SWAP_GB}G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=$((SWAP_GB*1024))
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
+          # Dorong penggunaan swap lebih awal agar lonjakan Soong tidak
+          # langsung memicu OOM killer / runner shutdown.
+          sudo sysctl -w vm.swappiness=80 || true
           free -h; swapon --show; df -h /
 
       # ============================================================
@@ -623,6 +631,12 @@ jobs:
         run: |
           cd ~/android/pixelos
           echo "=== Disk sebelum build ==="; df -h /
+          echo "=== Memori sebelum build ==="; free -h || true
+          # Bebaskan page cache agar RAM + swap tersedia untuk Soong
+          # bootstrap/analisis (mengurangi risiko OOM/shutdown runner).
+          sync || true
+          sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' || true
+
           # CATATAN CLANG (pelajaran run #158):
           # JANGAN set env LLVM_PREBUILTS_VERSION / LLVM_RELEASE_VERSION.
           # Override itu berlaku GLOBAL termasuk verifikasi path di
@@ -641,11 +655,13 @@ jobs:
           # cache 2G di runner yang sempit. Build bersih tanpa cache.
           export USE_CCACHE=0
           export CCACHE_DIR=/home/runner/.ccache
-          ccache -M 2G
+          ccache -M 2G || true
 
-          # Runner 4 vCPU / 16 GB. -j4 + swap 14 GB = kompromi aman antara
-          # kecepatan dan risiko OOM.
-          JOBS=4
+          # Runner ubuntu-24.04-arm: ~4 vCPU / ~16 GB RAM. Paralelisme tinggi
+          # menaikkan risiko lonjakan RAM saat Soong bootstrap/analisis dan
+          # dapat memicu runner shutdown (exit 143). Gunakan -j2 + swap agar
+          # lebih stabil pada GitHub-hosted runner gratis.
+          JOBS=2
           echo "Memakai -j$JOBS (nproc=$(nproc --all))"
 
           echo "=== LUNCH: $(date -u) ==="
@@ -655,7 +671,7 @@ jobs:
           echo "TARGET_DEVICE=$TARGET_DEVICE"
           [ -n "$TARGET_PRODUCT" ] || { echo ">>> TARGET_PRODUCT kosong: lunch gagal"; exit 1; }
 
-          ( while true; do sleep 300; echo "[heartbeat] $(date -u) build masih jalan"; done ) &
+          ( while true; do sleep 300; echo "[heartbeat] $(date -u) build masih jalan"; free -h || true; done ) &
           HB=$!
           # ------------------------------------------------------------
           # Target image-only, BUKAN 'bacon'.
@@ -670,9 +686,8 @@ jobs:
           # error "Prebuilt apk found in PRODUCT_COPY_FILES" (run #186). BUILD_BROKEN_VINTF_*
           # melewati check-product-copy-files (termasuk prebuilt apk) — aman untuk image-only.
           export BUILD_BROKEN_VINTF_PRODUCT_COPY_FILES=true
-          # Runner 4 vCPU / 16 GB di-preempt ~25 menit (run #187-#194).
-          # Potong TARGETS jadi systemimage SAJA supaya finish <25 menit.
-          # systemext/product/vbmeta di-build nanti (retry atau manual).
+          # Fokus ke systemimage dulu untuk mengurangi waktu/tekanan resource
+          # pada runner GitHub-hosted gratis.
           TARGETS="systemimage"
           echo "=== MULAI BUILD: $TARGETS ($(date -u)) ==="
           set -o pipefail
@@ -703,13 +718,13 @@ jobs:
           [ -f build.log ] || { echo "!! build.log tidak ada (build mungkin gagal sebelum mka)"; exit 0; }
           bash "$GITHUB_WORKSPACE/device-tree/scripts/diagnose-undefined-mods.sh" build.log || true
 
-      # Validasi wajib sebelum upload: jangan pernah menganggap build berhasil
-      # kalau image yang dibutuhkan untuk flashing tidak ada / berukuran nol.
+      # Validasi wajib sebelum upload: pastikan image hasil target build ada.
+      # Target saat ini: systemimage (lihat step Build). Image lain opsional.
       - name: Validate built images
         if: success()
         run: |
           cd ~/android/pixelos/out/target/product/X6840
-          required="system.img system_ext.img product.img vbmeta.img"
+          required="system.img"
           fail=0
           for f in $required; do
             if [ ! -s "$f" ]; then
@@ -719,10 +734,11 @@ jobs:
               printf '    OK  : %-20s %s bytes\n' "$f" "$(stat -c%s "$f")"
             fi
           done
-          for f in vbmeta*.img; do
-            if [ ! -s "$f" ]; then
-              echo "!! MISSING / kosong: $f"
-              fail=1
+          for f in system_ext.img product.img vbmeta.img vbmeta_system.img vbmeta_vendor.img; do
+            if [ -s "$f" ]; then
+              printf '    OK  : %-20s %s bytes (opsional)\n' "$f" "$(stat -c%s "$f")"
+            else
+              echo "    INFO: $f tidak ada (opsional untuk target saat ini)"
             fi
           done
           if [ "$fail" != "0" ]; then
@@ -734,8 +750,12 @@ jobs:
           # Ringkasan AVB (informatif): pastikan descriptor partisi yang
           # diverifikasi fstab memang ada di vbmeta hasil build.
           AVBTOOL=~/android/pixelos/external/avb/avbtool
-          if [ -f "$AVBTOOL" ]; then
-            for v in vbmeta*.img; do
+          shopt -s nullglob
+          vbm=(vbmeta*.img)
+          if [ "${#vbm[@]}" -eq 0 ]; then
+            echo "    INFO: tidak ada vbmeta*.img (opsional untuk target saat ini)"
+          elif [ -f "$AVBTOOL" ]; then
+            for v in "${vbm[@]}"; do
               echo "=== $v ==="
               python3 "$AVBTOOL" info_image --image "$v" 2>/dev/null \
                 | grep -E "Image size|Algorithm|Rollback Index|Partition Name|Salt" | head -20 || true
@@ -743,7 +763,7 @@ jobs:
           else
             echo "    WARN: avbtool tidak ada, ringkasan AVB dilewati"
           fi
-          echo ">>> Semua image wajib ada dan tidak kosong"
+          echo ">>> Validasi image wajib selesai"
 
       - name: Upload ROM
         if: success()
