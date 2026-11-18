@@ -258,16 +258,19 @@ jobs:
           sudo rm -f /swapfile
 
           AVAIL_GB=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
-          HEADROOM_GB=20   # sisakan ruang untuk pertumbuhan out/
+          # Headroom lebih kecil & swap max lebih besar: run #197 kehabisan swap
+          # (9G penuh, mem 15G penuh) saat Soong bootstrap/analisis -> runner shutdown.
+          # 23G avail => ~13G swap, sisa ~10G untuk out/ fase awal.
+          HEADROOM_GB=10   # sisakan ruang minimum untuk pertumbuhan out/
           MIN_SWAP_GB=4
-          MAX_SWAP_GB=10
+          MAX_SWAP_GB=14
 
           SWAP_GB=$((AVAIL_GB - HEADROOM_GB))
           if [ "$SWAP_GB" -gt "$MAX_SWAP_GB" ]; then SWAP_GB=$MAX_SWAP_GB; fi
           if [ "$SWAP_GB" -lt "$MIN_SWAP_GB" ]; then SWAP_GB=$MIN_SWAP_GB; fi
 
           # Pastikan masih ada headroom disk minimal setelah swap dibuat.
-          MIN_REMAIN_GB=8
+          MIN_REMAIN_GB=10
           if [ "$AVAIL_GB" -le $((SWAP_GB + MIN_REMAIN_GB)) ]; then
             SWAP_GB=$((AVAIL_GB - MIN_REMAIN_GB))
             if [ "$SWAP_GB" -lt 2 ]; then SWAP_GB=2; fi
@@ -287,7 +290,7 @@ jobs:
           sudo swapon /swapfile 2>/dev/null || true
           # Dorong penggunaan swap lebih awal agar lonjakan Soong tidak
           # langsung memicu OOM killer / runner shutdown.
-          sudo sysctl -w vm.swappiness=80 || true
+          sudo sysctl -w vm.swappiness=100 || true
           free -h; swapon --show; df -h /
 
       # ============================================================
@@ -695,7 +698,7 @@ jobs:
           echo "TARGET_DEVICE=$TARGET_DEVICE"
           [ -n "$TARGET_PRODUCT" ] || { echo ">>> TARGET_PRODUCT kosong: lunch gagal"; exit 1; }
 
-          ( while true; do sleep 300; echo "[heartbeat] $(date -u) build masih jalan"; free -h || true; done ) &
+          ( while true; do sleep 300; echo "[heartbeat] $(date -u) build masih jalan"; free -h || true; df -h / 2>/dev/null || true; done ) &
           HB=$!
           # ------------------------------------------------------------
           # Target image-only, BUKAN 'bacon'.
