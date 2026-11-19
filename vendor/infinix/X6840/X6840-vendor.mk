@@ -2847,25 +2847,22 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_VENDOR_PATH)/proprietary/odm_dlkm/lib/modules/tran_zram.ko:$(TARGET_COPY_OUT_ODM_DLKM)/lib/modules/tran_zram.ko \
     $(LOCAL_VENDOR_PATH)/proprietary/odm_dlkm/lib/modules/trans_sched.ko:$(TARGET_COPY_OUT_ODM_DLKM)/lib/modules/trans_sched.ko
 
-
-# ============================================================
-# Overlay APK mappings yang tidak ter-generate oleh vendor makefile generator.
-# Ditemukan saat audit: 15 APK ada di proprietary-files.txt tetapi tidak
-# punya mapping PRODUCT_COPY_FILES.
-# ============================================================
-PRODUCT_COPY_FILES += \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/NetworkStackGoogleGoResOverlay/NetworkStackGoogleGoResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/app/NetworkStackGoogleGoResOverlay/NetworkStackGoogleGoResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/NetworkStackGoogleResOverlay/NetworkStackGoogleResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/app/NetworkStackGoogleResOverlay/NetworkStackGoogleResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/NetworkStackResOverlay/NetworkStackResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/app/NetworkStackResOverlay/NetworkStackResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/TetheringGoogleResOverlay/TetheringGoogleResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/app/TetheringGoogleResOverlay/TetheringGoogleResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/TetheringResOverlay/TetheringResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/app/TetheringResOverlay/TetheringResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/CellbroadcastUIResOverlay/CellbroadcastUIResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/CellbroadcastUIResOverlay/CellbroadcastUIResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/ConnectivityResOverlay/ConnectivityResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/ConnectivityResOverlay/ConnectivityResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/FrameworkResOverlay/FrameworkResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/FrameworkResOverlay/FrameworkResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/FrameworkResOverlayExt/FrameworkResOverlayExt.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/FrameworkResOverlayExt/FrameworkResOverlayExt.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/MtkSettingsResOverlay/MtkSettingsResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/MtkSettingsResOverlay/MtkSettingsResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/MtkTelephonyServiceResOverlay/MtkTelephonyServiceResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/MtkTelephonyServiceResOverlay/MtkTelephonyServiceResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/SettingsProviderResOverlay/SettingsProviderResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/SettingsProviderResOverlay/SettingsProviderResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/SystemUIResOverlay/SystemUIResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/SystemUIResOverlay/SystemUIResOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/WifiResMainlineOverlay/WifiResMainlineOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/WifiResMainlineOverlay/WifiResMainlineOverlay.apk \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/overlay/WifiResOverlay/WifiResOverlay.apk:$(TARGET_COPY_OUT_VENDOR)/overlay/WifiResOverlay/WifiResOverlay.apk
+# Overlay APK prebuilts (vendor/app + vendor/overlay).
+# Dipasang via Android.mk BUILD_PREBUILT, bukan PRODUCT_COPY_FILES, karena
+# build system menolak .apk di PRODUCT_COPY_FILES (use BUILD_PREBUILT instead).
+PRODUCT_PACKAGES += \
+    NetworkStackGoogleGoResOverlay \
+    NetworkStackGoogleResOverlay \
+    NetworkStackResOverlay \
+    TetheringGoogleResOverlay \
+    TetheringResOverlay \
+    CellbroadcastUIResOverlay \
+    ConnectivityResOverlay \
+    FrameworkResOverlay \
+    FrameworkResOverlayExt \
+    MtkSettingsResOverlay \
+    MtkTelephonyServiceResOverlay \
+    SettingsProviderResOverlay \
+    SystemUIResOverlay \
+    WifiResMainlineOverlay \
+    WifiResOverlay

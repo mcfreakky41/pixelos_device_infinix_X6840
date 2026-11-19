@@ -747,6 +747,50 @@ PY
 fi
 
 # ============================================================
+# 6. Defensive: izinkan prebuilt .apk di PRODUCT_COPY_FILES bila flag
+#    BUILD_BROKEN_PREBUILT_APK_IN_PRODUCT_COPY_FILES=true diset.
+#    AOSP modern menolak .apk di PRODUCT_COPY_FILES secara unconditional;
+#    beberapa vendor tree (termasuk overlay stok) masih menggunakannya.
+#    Repo ini memasang vendor APK sebagai prebuilt module, tapi patch ini
+#    mencegah regresi/build break bila mapping lama muncul lagi.
+# ============================================================
+echo ">>> Mem-patch check prebuilt apk di PRODUCT_COPY_FILES (opsional, flag-gated)..."
+CORE_MK="build/make/core/Makefile"
+if [ -f "$CORE_MK" ]; then
+python3 - "$CORE_MK" <<'PY'
+import re, sys
+p = sys.argv[1]
+s = open(p, encoding='utf-8').read()
+if 'BUILD_BROKEN_PREBUILT_APK_IN_PRODUCT_COPY_FILES' in s:
+    print('  OK  : apk PRODUCT_COPY_FILES check sudah aware flag')
+    raise SystemExit(0)
+m = re.search(
+    r'(\$\(if \$\(filter %\.apk, \$\(2\)\),\$\(error \\\ns*Prebuilt apk found in PRODUCT_COPY_FILES: \$\(1\), use BUILD_PREBUILT instead!\)\)\))',
+    s
+)
+if not m:
+    print('  WARN: pola apk PRODUCT_COPY_FILES check tidak ditemukan (mungkin sudah berubah)')
+    raise SystemExit(0)
+orig = m.group(1)
+new = ('$(if $(filter true,$(BUILD_BROKEN_PREBUILT_APK_IN_PRODUCT_COPY_FILES)),,\\
+'
+       '  ' + orig.replace('
+  ', '
+    ') + ')')
+if orig == new or new in s:
+    print('  WARN: patch apk check tidak diterapkan')
+    raise SystemExit(0)
+s = s.replace(orig, new, 1)
+open(p, 'w', encoding='utf-8').write(s)
+print('  OK  : apk PRODUCT_COPY_FILES check kini gated oleh BUILD_BROKEN_PREBUILT_APK_IN_PRODUCT_COPY_FILES')
+PY
+  [ $? -eq 0 ] || warn "gagal mem-patch apk PRODUCT_COPY_FILES check"
+else
+  ok "build/make/core/Makefile tidak ada (dilewati)"
+fi
+
+
+# ============================================================
 # 5. Verifikasi akhir (fail-closed)
 # ============================================================
 check_absent() { # desc, path

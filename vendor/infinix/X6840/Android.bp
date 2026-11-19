@@ -4,5 +4,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-// APK stok /vendor dipasang via PRODUCT_COPY_FILES di X6840-vendor.mk
-// (prebuilt_any tidak diizinkan di .bp file oleh PixelOS sixteen build system).
+// APK overlay stok /vendor dipasang sebagai prebuilt Make module di Android.mk
+// dan diminta lewat PRODUCT_PACKAGES di X6840-vendor.mk (prebuilt_any tidak
+// diizinkan di .bp oleh PixelOS sixteen; .apk juga ditolak di PRODUCT_COPY_FILES).
