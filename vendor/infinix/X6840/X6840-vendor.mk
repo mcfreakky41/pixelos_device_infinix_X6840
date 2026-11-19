@@ -5,8 +5,6 @@ LOCAL_VENDOR_PATH := vendor/infinix/X6840
 
 # ---- vendor (1942 file) ----
 PRODUCT_COPY_FILES += \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/apex/com.android.hardware.cas.apex:$(TARGET_COPY_OUT_VENDOR)/apex/com.android.hardware.cas.apex \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/apex/com.google.android.widevine.nonupdatable.apex:$(TARGET_COPY_OUT_VENDOR)/apex/com.google.android.widevine.nonupdatable.apex \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/mcRegistry/020f0000000000000000000000000000.drbin:$(TARGET_COPY_OUT_VENDOR)/app/mcRegistry/020f0000000000000000000000000000.drbin \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/mcRegistry/020f0000000000000000000000000000.tlbin:$(TARGET_COPY_OUT_VENDOR)/app/mcRegistry/020f0000000000000000000000000000.tlbin \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/app/mcRegistry/05060000000000000000000000000000.tabin:$(TARGET_COPY_OUT_VENDOR)/app/mcRegistry/05060000000000000000000000000000.tabin \
