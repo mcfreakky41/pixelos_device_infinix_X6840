@@ -753,42 +753,54 @@ fi
 #    beberapa vendor tree (termasuk overlay stok) masih menggunakannya.
 #    Repo ini memasang vendor APK sebagai prebuilt module, tapi patch ini
 #    mencegah regresi/build break bila mapping lama muncul lagi.
+#    Bersifat best-effort/non-fatal: jika pola tidak cocok, build lanjut.
 # ============================================================
 echo ">>> Mem-patch check prebuilt apk di PRODUCT_COPY_FILES (opsional, flag-gated)..."
 CORE_MK="build/make/core/Makefile"
 if [ -f "$CORE_MK" ]; then
 python3 - "$CORE_MK" <<'PY'
 import re, sys
+
 p = sys.argv[1]
 s = open(p, encoding='utf-8').read()
-if 'BUILD_BROKEN_PREBUILT_APK_IN_PRODUCT_COPY_FILES' in s:
+flag = 'BUILD_BROKEN_PREBUILT_APK_IN_PRODUCT_COPY_FILES'
+if flag in s:
     print('  OK  : apk PRODUCT_COPY_FILES check sudah aware flag')
     raise SystemExit(0)
-m = re.search(
-    r'(\$\(if \$\(filter %\.apk, \$\(2\)\),\$\(error \\\ns*Prebuilt apk found in PRODUCT_COPY_FILES: \$\(1\), use BUILD_PREBUILT instead!\)\)\))',
-    s
+
+pat = re.compile(
+    r"($(if $(filter %.apk, $(2)),$(error \\?
+"
+    r"s*Prebuilt apk found in PRODUCT_COPY_FILES: $(1), use BUILD_PREBUILT instead!))))"
 )
+m = pat.search(s)
 if not m:
-    print('  WARN: pola apk PRODUCT_COPY_FILES check tidak ditemukan (mungkin sudah berubah)')
+    print('  INFO: pola apk PRODUCT_COPY_FILES check tidak ditemukan (dilewati, non-fatal)')
     raise SystemExit(0)
+
 orig = m.group(1)
-new = ('$(if $(filter true,$(BUILD_BROKEN_PREBUILT_APK_IN_PRODUCT_COPY_FILES)),,\\
-'
-       '  ' + orig.replace('
-  ', '
-    ') + ')')
-if orig == new or new in s:
-    print('  WARN: patch apk check tidak diterapkan')
+indented = orig.replace('
+', '
+  ')
+new = '$(if $(filter true,$(' + flag + ')),,\
+  ' + indented + ')'
+if new in s:
+    print('  OK  : apk PRODUCT_COPY_FILES check sudah aware flag')
     raise SystemExit(0)
-s = s.replace(orig, new, 1)
-open(p, 'w', encoding='utf-8').write(s)
-print('  OK  : apk PRODUCT_COPY_FILES check kini gated oleh BUILD_BROKEN_PREBUILT_APK_IN_PRODUCT_COPY_FILES')
+ns = s.replace(orig, new, 1)
+if ns == s:
+    print('  INFO: patch apk check tidak diterapkan (non-fatal)')
+    raise SystemExit(0)
+open(p, 'w', encoding='utf-8').write(ns)
+print('  OK  : apk PRODUCT_COPY_FILES check kini gated oleh ' + flag)
 PY
-  [ $? -eq 0 ] || warn "gagal mem-patch apk PRODUCT_COPY_FILES check"
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    echo "  WARN: patch apk PRODUCT_COPY_FILES check gagal (rc=$rc), dilanjutkan (non-fatal)"
+  fi
 else
   ok "build/make/core/Makefile tidak ada (dilewati)"
 fi
-
 
 # ============================================================
 # 5. Verifikasi akhir (fail-closed)
