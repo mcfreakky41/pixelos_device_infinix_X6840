@@ -56,7 +56,6 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/atcid:$(TARGET_COPY_OUT_VENDOR)/bin/atcid \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/audiocmdservice_atci:$(TARGET_COPY_OUT_VENDOR)/bin/audiocmdservice_atci \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/autobt:$(TARGET_COPY_OUT_VENDOR)/bin/autobt \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/awk:$(TARGET_COPY_OUT_VENDOR)/bin/awk \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/bip:$(TARGET_COPY_OUT_VENDOR)/bin/bip \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/boringssl_self_test64:$(TARGET_COPY_OUT_VENDOR)/bin/boringssl_self_test64 \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/ccci_mdinit:$(TARGET_COPY_OUT_VENDOR)/bin/ccci_mdinit \
@@ -181,7 +180,6 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/replayevent:$(TARGET_COPY_OUT_VENDOR)/bin/replayevent \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/rt5512_calibration:$(TARGET_COPY_OUT_VENDOR)/bin/rt5512_calibration \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/rttv_v2:$(TARGET_COPY_OUT_VENDOR)/bin/rttv_v2 \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/sh:$(TARGET_COPY_OUT_VENDOR)/bin/sh \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/starter:$(TARGET_COPY_OUT_VENDOR)/bin/starter \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/storage_feature_cloudctl:$(TARGET_COPY_OUT_VENDOR)/bin/storage_feature_cloudctl \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/stp_dump3:$(TARGET_COPY_OUT_VENDOR)/bin/stp_dump3 \
@@ -189,8 +187,6 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/thermal:$(TARGET_COPY_OUT_VENDOR)/bin/thermal \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/thermal_manager:$(TARGET_COPY_OUT_VENDOR)/bin/thermal_manager \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/thermalloadalgod:$(TARGET_COPY_OUT_VENDOR)/bin/thermalloadalgod \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/toolbox:$(TARGET_COPY_OUT_VENDOR)/bin/toolbox \
-    $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/toybox_vendor:$(TARGET_COPY_OUT_VENDOR)/bin/toybox_vendor \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/tranfac_native:$(TARGET_COPY_OUT_VENDOR)/bin/tranfac_native \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/trusty-ut-ctrl:$(TARGET_COPY_OUT_VENDOR)/bin/trusty-ut-ctrl \
     $(LOCAL_VENDOR_PATH)/proprietary/vendor/bin/uastool:$(TARGET_COPY_OUT_VENDOR)/bin/uastool \
